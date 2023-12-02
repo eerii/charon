@@ -1,14 +1,13 @@
-pub mod audio;
-pub mod config;
+mod audio;
+mod config;
 mod debug;
-pub mod input;
-pub mod load;
+mod input;
+mod load;
 mod menu;
+mod tilemap;
 mod ui;
 
 use bevy::prelude::*;
-
-// TODO: Option for pixel perfect upscaling camera
 
 // Game state
 #[derive(States, Debug, Default, Clone, Eq, PartialEq, Hash)]
@@ -31,6 +30,7 @@ impl Plugin for GamePlugin {
             config::ConfigPlugin,
             input::InputPlugin,
             audio::AudioPlugin,
+            tilemap::TilePlugin,
         ));
 
         #[cfg(debug_assertions)]

@@ -4,7 +4,6 @@
 use crate::{config::GameOptions, ui::*, GameState};
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
-use bevy_kira_audio::AudioSource;
 use bevy_persistent::Persistent;
 use iyes_progress::prelude::*;
 
@@ -23,7 +22,7 @@ impl Plugin for LoadPlugin {
     fn build(&self, app: &mut App) {
         app.add_loading_state(LoadingState::new(GameState::Loading))
             .init_collection::<GameAssets>()
-            .add_collection_to_loading_state::<_, SampleAssets>(GameState::Loading)
+            .add_collection_to_loading_state::<_, TilemapAssets>(GameState::Loading)
             .add_plugins((ProgressPlugin::new(GameState::Loading)
                 .continue_to(GameState::Menu)
                 .track_assets(),))
@@ -53,14 +52,10 @@ pub struct GameAssets {
     pub font: Handle<Font>,
 }
 
-// Sample assets
 #[derive(AssetCollection, Resource)]
-pub struct SampleAssets {
-    #[asset(path = "sounds/boing.ogg")]
-    pub boing: Handle<AudioSource>,
-
-    #[asset(path = "music/soundscape.ogg")]
-    pub ambient_music: Handle<AudioSource>,
+pub struct TilemapAssets {
+    #[asset(path = "sprites/temp_tile.png")]
+    pub temp: Handle<Image>,
 }
 
 // ··········

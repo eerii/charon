@@ -20,14 +20,18 @@ pub struct InputPlugin;
 impl Plugin for InputPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Input::<Bind>::default())
+            .insert_resource(MousePosition::default())
             .add_systems(
                 PreUpdate,
                 (
-                    handle_input_keyboard,
-                    handle_input_mouse,
-                    handle_input_gamepad,
-                )
-                    .run_if(resource_exists::<Persistent<Keybinds>>()),
+                    (
+                        handle_input_keyboard,
+                        handle_input_mouse,
+                        handle_input_gamepad,
+                    )
+                        .run_if(resource_exists::<Persistent<Keybinds>>()),
+                    handle_mouse_moved,
+                ),
             )
             .add_systems(PostUpdate, clear_input);
     }
@@ -53,6 +57,9 @@ impl ToString for Bind {
         }
     }
 }
+
+#[derive(Resource, Default)]
+pub struct MousePosition(pub Vec2);
 
 // ·······
 // Systems
@@ -116,4 +123,18 @@ fn handle_input_gamepad(
 
 fn clear_input(mut input: ResMut<Input<Bind>>) {
     input.clear();
+}
+
+fn handle_mouse_moved(
+    camera: Query<(&GlobalTransform, &Camera)>, // TODO: Create game camera and filter it here
+    mut events: EventReader<CursorMoved>,
+    mut mouse: ResMut<MousePosition>,
+) {
+    for event in events.read() {
+        for (trans, cam) in camera.iter() {
+            if let Some(pos) = cam.viewport_to_world_2d(trans, event.position) {
+                *mouse = MousePosition(pos);
+            }
+        }
+    }
 }

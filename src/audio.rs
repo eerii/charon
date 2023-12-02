@@ -1,7 +1,5 @@
 use bevy::prelude::*;
-use bevy_kira_audio::{prelude::AudioPlugin as KiraAudioPlugin, prelude::*};
-
-use crate::{load::SampleAssets, GameState};
+use bevy_kira_audio::prelude::AudioPlugin as KiraAudioPlugin;
 
 // ······
 // Plugin
@@ -12,8 +10,8 @@ pub struct AudioPlugin;
 impl Plugin for AudioPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(KiraAudioPlugin)
-            .add_systems(OnEnter(GameState::Play), init_music)
-            .add_systems(OnExit(GameState::Play), pause_music)
+            /*.add_systems(OnEnter(GameState::Play), init_music)
+            .add_systems(OnExit(GameState::Play), pause_music)*/
             .init_resource::<MusicHandles>();
     }
 }
@@ -24,14 +22,14 @@ impl Plugin for AudioPlugin {
 
 #[derive(Resource, Default)]
 struct MusicHandles {
-    ambient_music: Option<Handle<AudioInstance>>,
+    //ambient_music: Option<Handle<AudioInstance>>,
 }
 
 // ·······
 // Systems
 // ·······
 
-fn init_music(
+/*fn init_music(
     assets: Res<SampleAssets>,
     audio: Res<Audio>,
     mut handles: ResMut<MusicHandles>,
@@ -62,4 +60,4 @@ fn pause_music(handles: Res<MusicHandles>, mut instances: ResMut<Assets<AudioIns
             inst.pause(default());
         }
     }
-}
+}*/

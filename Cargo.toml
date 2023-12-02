@@ -1,8 +1,8 @@
 [package]
-name = "hello-bevy" # [CHANGE]: Set your project name.
-version = "0.12.3"
+name = "charon"
+version = "0.1.0"
 edition = "2021"
-description = "a bevy game template"
+description = "a game for the bevy jam 4"
 exclude = ["build", "assets", ".data"]
 
 [profile.dev.package."*"]
@@ -32,5 +32,6 @@ iyes_progress = { version = "0.10", features = [ "assets" ] } # Track loading an
 bevy-inspector-egui = { version = "0.21" } # Inspector
 bevy-persistent = { version = "0.4", features = ["toml"] } # Persistent values (for saving)
 bevy_mod_debugdump = { version = "0.9" } # Debug graphs
+bevy_ecs_tilemap = { git = "https://github.com/divark/bevy_ecs_tilemap.git", branch = "0.12-fixes" } # Tilemap (main repo is not updated for 0.12)
 rand = { version = "0.8" }
 serde = { version = "1.0", features = ["derive"] }

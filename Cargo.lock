@@ -645,6 +645,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_ecs_tilemap"
+version = "0.12.0"
+source = "git+https://github.com/divark/bevy_ecs_tilemap.git?branch=0.12-fixes#658b6c12441a808c8342233a230863d3c74f780f"
+dependencies = [
+ "bevy",
+ "log",
+ "regex",
+]
+
+[[package]]
 name = "bevy_egui"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1410,6 +1420,23 @@ name = "cfg_aliases"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
+
+[[package]]
+name = "charon"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy-inspector-egui",
+ "bevy-persistent",
+ "bevy_asset_loader",
+ "bevy_ecs_tilemap",
+ "bevy_embedded_assets",
+ "bevy_kira_audio",
+ "bevy_mod_debugdump",
+ "iyes_progress",
+ "rand",
+ "serde",
+]
 
 [[package]]
 name = "clang-sys"
@@ -2207,22 +2234,6 @@ dependencies = [
  "thiserror",
  "widestring",
  "winapi",
-]
-
-[[package]]
-name = "hello-bevy"
-version = "0.12.3"
-dependencies = [
- "bevy",
- "bevy-inspector-egui",
- "bevy-persistent",
- "bevy_asset_loader",
- "bevy_embedded_assets",
- "bevy_kira_audio",
- "bevy_mod_debugdump",
- "iyes_progress",
- "rand",
- "serde",
 ]
 
 [[package]]
