@@ -1,0 +1,36 @@
+[package]
+name = "hello-bevy" # [CHANGE]: Set your project name.
+version = "0.12.3"
+edition = "2021"
+description = "a bevy game template"
+exclude = ["build", "assets", ".data"]
+
+[profile.dev.package."*"]
+opt-level = 3 # Improves performance when developing, but slows down first compilation significantly
+
+[profile.dev]
+opt-level = 1
+
+[features]
+dev = [
+    "bevy/dynamic_linking",
+]
+
+[dependencies]
+# The bevy engine <3
+# Default feautres are disabled because we are using audio from a different source (kira)
+bevy = { version = "0.12", default-features = false, features = [
+    "animation", "bevy_asset", "bevy_gilrs", "bevy_scene", "bevy_winit",
+    "bevy_core_pipeline", "bevy_pbr", "bevy_gltf", "bevy_render", "bevy_sprite",
+    "bevy_text", "bevy_ui", "multi-threaded", "png", "hdr", "x11", "bevy_gizmos",
+    "tonemapping_luts", "default_font", "webgl2",
+]} 
+bevy_asset_loader = { version = "0.18", features = [ "progress_tracking" ] } # Better asset loader
+bevy_embedded_assets = { version = "0.9" } # Embed assets in binary
+bevy_kira_audio = { version =  "0.18" } # Improved audio library
+iyes_progress = { version = "0.10", features = [ "assets" ] } # Track loading and game state
+bevy-inspector-egui = { version = "0.21" } # Inspector
+bevy-persistent = { version = "0.4", features = ["toml"] } # Persistent values (for saving)
+bevy_mod_debugdump = { version = "0.9" } # Debug graphs
+rand = { version = "0.8" }
+serde = { version = "1.0", features = ["derive"] }

@@ -1,0 +1,6 @@
+/target*
+.DS_Store
+dist
+graphs
+.vscode
+.data
