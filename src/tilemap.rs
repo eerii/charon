@@ -65,7 +65,7 @@ pub struct PathTile(u32);
 // Systems
 // ·······
 
-fn init_tilemap(mut cmd: Commands, tiles: Res<TilemapAssets>) {
+fn init_tilemap(mut cmd: Commands, assets: Res<TilemapAssets>) {
     let tilemap = cmd.spawn_empty().id();
 
     // Spawn tiles
@@ -97,12 +97,10 @@ fn init_tilemap(mut cmd: Commands, tiles: Res<TilemapAssets>) {
         grid_size: GRID_SIZE,
         map_type,
         storage,
-        texture: TilemapTexture::Single(tiles.temp.clone()),
+        texture: TilemapTexture::Single(assets.tiles.clone()),
         transform: get_tilemap_center_transform(&MAP_SIZE, &GRID_SIZE, &map_type, 0.0),
         ..default()
     });
-
-    // Create atlas (if needed)
 }
 
 fn select_tile(
@@ -185,22 +183,22 @@ fn click_tile(
 
 fn highlight_tile(
     mut tiles: Query<(
-        &mut TileColor,
+        &mut TileTextureIndex,
         Option<&SelectedTile>,
         Option<&PathTile>,
         Option<&StartTile>,
         Option<&EndTile>,
     )>,
 ) {
-    for (mut color, selected, path, start, end) in tiles.iter_mut() {
+    for (mut tex, selected, path, start, end) in tiles.iter_mut() {
         if selected.is_some() {
-            *color = TileColor(Color::ALICE_BLUE);
+            *tex = TileTextureIndex(0);
         } else if path.is_some() {
-            *color = TileColor(Color::ORANGE);
+            *tex = TileTextureIndex(1);
         } else if start.is_some() || end.is_some() {
-            *color = TileColor(Color::rgb(0.3, 0.4, 1.0));
+            *tex = TileTextureIndex(2);
         } else {
-            *color = TileColor(Color::SEA_GREEN);
+            *tex = TileTextureIndex(0);
         }
     }
 }

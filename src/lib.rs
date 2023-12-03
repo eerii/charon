@@ -7,7 +7,7 @@ mod menu;
 pub mod tilemap;
 pub mod ui;
 
-use bevy::{prelude::*, render::view::RenderLayers, sprite::MaterialMesh2dBundle};
+use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
 use bevy_persistent::Persistent;
 use config::GameOptions;
 
@@ -56,13 +56,6 @@ fn init_game(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    // Camera
-    cmd.spawn((
-        Camera2dBundle::default(),
-        RenderLayers::layer(0),
-        GameCamera,
-    ));
-
     // Background
     cmd.spawn(MaterialMesh2dBundle {
         mesh: meshes.add(Mesh::from(shape::Quad::default())).into(),

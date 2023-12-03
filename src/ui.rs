@@ -1,4 +1,4 @@
-use bevy::{prelude::*, render::view::RenderLayers};
+use bevy::prelude::*;
 use bevy_persistent::Persistent;
 
 use crate::{config::GameOptions, load::GameAssets, GameState};
@@ -6,7 +6,6 @@ use crate::{config::GameOptions, load::GameAssets, GameState};
 const MENU_WIDTH: Val = Val::Px(300.);
 const MENU_ITEM_HEIGHT: Val = Val::Px(40.);
 const MENU_ITEM_GAP: Val = Val::Px(10.);
-pub const UI_LAYER: RenderLayers = RenderLayers::layer(1);
 
 // TODO: Tweening and animation (Look into https://github.com/djeedai/bevy_tweening)
 // TODO: Rounded button corners (Requires #8973 to be merged in 0.13)
@@ -57,17 +56,7 @@ pub struct UiNode;
 // ·······
 
 pub fn init_ui(mut cmd: Commands) {
-    cmd.spawn((
-        Camera2dBundle {
-            camera: Camera {
-                order: -10,
-                ..default()
-            },
-            ..default()
-        },
-        UI_LAYER,
-        UiCam,
-    ));
+    cmd.spawn((Camera2dBundle::default(), UiCam));
 
     cmd.spawn((
         NodeBundle {
@@ -82,7 +71,6 @@ pub fn init_ui(mut cmd: Commands) {
             },
             ..default()
         },
-        UI_LAYER,
         UiNode,
     ));
 }
@@ -151,7 +139,7 @@ impl<'a> UIText<'a> {
     }
 
     pub fn add(self, parent: &mut ChildBuilder) {
-        parent.spawn((self.text, UI_LAYER));
+        parent.spawn(self.text);
     }
 }
 
@@ -189,9 +177,9 @@ impl<T: Component> UIButton<T> {
     pub fn add(self, parent: &mut ChildBuilder) {
         let _text = self.text.text.sections[0].value.clone();
         let _id = parent
-            .spawn((self.button, self.action, UI_LAYER))
+            .spawn((self.button, self.action))
             .with_children(|button| {
-                button.spawn((self.text, UI_LAYER));
+                button.spawn(self.text);
             })
             .id();
     }
@@ -226,7 +214,7 @@ impl<'a> UIOption<'a> {
     }
 
     pub fn add(self, parent: &mut ChildBuilder, children: impl FnOnce(&mut ChildBuilder)) {
-        parent.spawn((self.row, UI_LAYER)).with_children(|row| {
+        parent.spawn(self.row).with_children(|row| {
             self.label.add(row);
             children(row);
         });

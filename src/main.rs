@@ -1,13 +1,10 @@
-use bevy::{prelude::*, window::WindowResolution};
-use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
+use bevy::{asset::AssetMetaCheck, prelude::*, window::WindowResolution};
 use charon::GamePlugin;
 
 fn main() {
     App::new()
+        .insert_resource(AssetMetaCheck::Never)
         .add_plugins((
-            EmbeddedAssetPlugin {
-                mode: PluginMode::ReplaceDefault,
-            },
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "Charon".to_string(),

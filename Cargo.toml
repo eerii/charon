@@ -26,12 +26,11 @@ bevy = { version = "0.12", default-features = false, features = [
     "tonemapping_luts", "default_font", "webgl2",
 ]} 
 bevy_asset_loader = { version = "0.18", features = [ "progress_tracking" ] } # Better asset loader
-bevy_embedded_assets = { version = "0.9" } # Embed assets in binary
 bevy_kira_audio = { version =  "0.18" } # Improved audio library
 iyes_progress = { version = "0.10", features = [ "assets" ] } # Track loading and game state
 bevy-inspector-egui = { version = "0.21" } # Inspector
-bevy-persistent = { version = "0.4", features = ["toml"] } # Persistent values (for saving)
+bevy-persistent = { version = "0.4", features = [ "toml" ] } # Persistent values (for saving)
 bevy_mod_debugdump = { version = "0.9" } # Debug graphs
-bevy_ecs_tilemap = { git = "https://github.com/divark/bevy_ecs_tilemap.git", branch = "0.12-fixes" } # Tilemap (main repo is not updated for 0.12)
+bevy_ecs_tilemap = { git = "https://github.com/divark/bevy_ecs_tilemap.git", branch = "0.12-fixes", features = [ "atlas" ] } # Tilemap (main repo is not updated for 0.12)
 rand = { version = "0.8" }
 serde = { version = "1.0", features = ["derive"] }

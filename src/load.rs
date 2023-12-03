@@ -8,7 +8,7 @@ use bevy_persistent::Persistent;
 use iyes_progress::prelude::*;
 
 #[cfg(debug_assertions)]
-pub const SPLASH_TIME: f32 = 0.1;
+pub const SPLASH_TIME: f32 = 2.;
 #[cfg(not(debug_assertions))]
 pub const SPLASH_TIME: f32 = 2.;
 
@@ -26,11 +26,14 @@ impl Plugin for LoadPlugin {
             .add_plugins((ProgressPlugin::new(GameState::Loading)
                 .continue_to(GameState::Menu)
                 .track_assets(),))
-            .add_systems(OnEnter(GameState::Loading), init_splash.after(init_ui))
             .add_systems(OnExit(GameState::Loading), clear_loading)
             .add_systems(
                 Update,
-                (check_splash_finished.track_progress(), check_progress)
+                (
+                    init_splash,
+                    check_splash_finished.track_progress(),
+                    check_progress,
+                )
                     .run_if(in_state(GameState::Loading))
                     .after(LoadingStateSet(GameState::Loading)),
             );
@@ -54,8 +57,8 @@ pub struct GameAssets {
 
 #[derive(AssetCollection, Resource)]
 pub struct TilemapAssets {
-    #[asset(path = "sprites/temp_tile.png")]
-    pub temp: Handle<Image>,
+    #[asset(path = "sprites/tiles.png")]
+    pub tiles: Handle<Image>,
 }
 
 // ··········
@@ -72,25 +75,33 @@ struct ProgressBar;
 // Systems
 // ·······
 
-fn init_splash(mut cmd: Commands, node: Query<Entity, With<UiNode>>, assets: Res<GameAssets>) {
+fn init_splash(
+    mut cmd: Commands,
+    node: Query<Entity, With<UiNode>>,
+    assets: Res<GameAssets>,
+    mut has_init: Local<bool>,
+) {
+    if *has_init {
+        return;
+    }
+
     if let Ok(node) = node.get_single() {
         if let Some(mut node) = cmd.get_entity(node) {
             node.with_children(|parent| {
-                parent.spawn((
-                    ImageBundle {
-                        image: UiImage {
-                            texture: assets.bevy_icon.clone(),
-                            ..default()
-                        },
-                        style: Style {
-                            width: Val::Px(128.),
-                            ..default()
-                        },
+                parent.spawn((ImageBundle {
+                    image: UiImage {
+                        texture: assets.bevy_icon.clone(),
                         ..default()
                     },
-                    UI_LAYER,
-                ));
+                    style: Style {
+                        width: Val::Px(128.),
+                        ..default()
+                    },
+                    ..default()
+                },));
             });
+
+            *has_init = true;
         }
     }
 
@@ -137,35 +148,29 @@ fn check_progress(
                 if let Some(mut entity) = cmd.get_entity(node) {
                     entity.with_children(|parent| {
                         // Loading text
-                        parent.spawn((
-                            TextBundle {
-                                text: Text::from_section(
-                                    "Loading",
-                                    TextStyle {
-                                        font: assets.font.clone(),
-                                        font_size: 48.,
-                                        color: opts.color.mid,
-                                    },
-                                ),
-                                ..default()
-                            },
-                            UI_LAYER,
-                        ));
+                        parent.spawn((TextBundle {
+                            text: Text::from_section(
+                                "Loading",
+                                TextStyle {
+                                    font: assets.font.clone(),
+                                    font_size: 48.,
+                                    color: opts.color.mid,
+                                },
+                            ),
+                            ..default()
+                        },));
 
                         // Progress bar
                         parent
-                            .spawn((
-                                NodeBundle {
-                                    style: Style {
-                                        width: Val::Percent(70.),
-                                        height: Val::Px(32.),
-                                        ..default()
-                                    },
-                                    background_color: opts.color.dark.into(),
+                            .spawn((NodeBundle {
+                                style: Style {
+                                    width: Val::Percent(70.),
+                                    height: Val::Px(32.),
                                     ..default()
                                 },
-                                UI_LAYER,
-                            ))
+                                background_color: opts.color.dark.into(),
+                                ..default()
+                            },))
                             .with_children(|parent| {
                                 parent.spawn((
                                     NodeBundle {
@@ -180,7 +185,6 @@ fn check_progress(
                                         background_color: opts.color.light.into(),
                                         ..default()
                                     },
-                                    UI_LAYER,
                                     ProgressBar,
                                 ));
                             });
