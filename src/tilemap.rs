@@ -66,7 +66,7 @@ pub struct StartTile;
 pub struct EndTile;
 
 #[derive(Component, Clone)]
-pub struct PathTile(Option<f32>);
+pub struct PathTile(pub Option<f32>);
 
 // ·······
 // Systems
@@ -128,18 +128,8 @@ fn select_tile(
         cmd.entity(entity).remove::<SelectedTile>();
     }
 
-    for (map_size, grid_size, map_type, tile_storage, map_transform) in tilemap.iter() {
-        let mouse: Vec2 = mouse.0;
-
-        let mouse_in_map_pos: Vec2 = {
-            let mouse = Vec4::from((mouse, 0.0, 1.0));
-            let mouse_in_map_pos = map_transform.compute_matrix().inverse() * mouse;
-            mouse_in_map_pos.xy()
-        };
-
-        if let Some(tile_pos) =
-            TilePos::from_world_pos(&mouse_in_map_pos, map_size, grid_size, map_type)
-        {
+    for (map_size, grid_size, map_type, tile_storage, trans) in tilemap.iter() {
+        if let Some(tile_pos) = pos_to_tile(&mouse.0, map_size, grid_size, map_type, trans) {
             if let Some(tile_entity) = tile_storage.get(&tile_pos) {
                 cmd.entity(tile_entity).insert(SelectedTile);
             }
@@ -201,7 +191,7 @@ fn click_tile(
                             let prev_neighbours = get_neighbours(two, size);
 
                             // If the new tile is also a neighbour of the one two ago, delete the previous one
-                            if prev_neighbours.iter().any(|(p, _)| p == pos) {
+                            if prev_neighbours.iter().any(|p| p == pos) {
                                 let entity = storage.get(&one).unwrap();
                                 cmd.entity(entity).remove::<PathTile>();
                                 one_ago.replace(pos.clone());
@@ -265,7 +255,7 @@ fn pathfinding(
                 let neighbours = get_neighbours(&current, size);
 
                 // TODO: Order with heuristic
-                for (neighbour, inc) in neighbours {
+                for neighbour in neighbours {
                     // If the tile is already closed, skip it
                     if !closed.contains(&neighbour) {
                         if let Some(entity) = storage.get(&neighbour) {
@@ -277,7 +267,7 @@ fn pathfinding(
                             match paths.get_mut(entity) {
                                 // If the tile is a path, update its value and add it to the queue
                                 Ok(mut path) => {
-                                    path.0 = Some(g + inc);
+                                    path.0 = Some(g + 1.);
                                     open.push(neighbour, path.0.unwrap());
                                 }
                                 // If it is not, skip it
@@ -298,15 +288,11 @@ fn pathfinding(
 // Extra
 // ·····
 
-const DIRECTIONS: [SquareDirection; 8] = [
-    SquareDirection::West,
+const DIRECTIONS: [SquareDirection; 4] = [
+    SquareDirection::East,
     SquareDirection::North,
     SquareDirection::South,
-    SquareDirection::East,
-    SquareDirection::NorthEast,
-    SquareDirection::SouthEast,
-    SquareDirection::SouthWest,
-    SquareDirection::NorthWest,
+    SquareDirection::West,
 ];
 
 struct PriorityQueue {
@@ -349,12 +335,12 @@ impl PriorityQueue {
     }
 }
 
-fn get_neighbours(pos: &TilePos, size: &TilemapSize) -> Vec<(TilePos, f32)> {
+pub fn get_neighbours(pos: &TilePos, size: &TilemapSize) -> Vec<TilePos> {
     let mut neighbours = Vec::new();
 
-    for (i, direction) in DIRECTIONS.iter().enumerate() {
+    for direction in DIRECTIONS.iter() {
         if let Some(pos) = pos.diamond_offset(direction, size) {
-            neighbours.push((pos, if i < 4 { 1. } else { 1.5 }));
+            neighbours.push(pos);
         }
     }
 
@@ -371,17 +357,28 @@ fn astar_f(pos: &TilePos, end: &TilePos, g: f32) -> f32 {
     g + heuristic(pos, end)
 }
 
-#[allow(dead_code)]
-fn get_path_from_tile(
-    pos: &TilePos,
-    storage: &TileStorage,
-    paths: Query<&PathTile>,
-) -> Option<PathTile> {
-    if let Some(entity) = storage.get(pos) {
-        if let Ok(path) = paths.get(entity) {
-            return Some(path.clone());
-        }
-    }
+pub fn pos_to_tile(
+    pos: &Vec2,
+    map_size: &TilemapSize,
+    grid_size: &TilemapGridSize,
+    map_type: &TilemapType,
+    trans: &Transform,
+) -> Option<TilePos> {
+    let pos = Vec4::new(pos.x, pos.y, 0., 1.);
+    let pos_in_map = trans.compute_matrix().inverse() * pos;
+    TilePos::from_world_pos(&pos_in_map.xy(), map_size, grid_size, map_type)
+}
 
-    None
+pub fn tile_to_pos(
+    tile: &TilePos,
+    grid_size: &TilemapGridSize,
+    map_type: &TilemapType,
+    trans: &Transform,
+) -> Vec2 {
+    let pos = tile
+        .center_in_world(grid_size, map_type)
+        .extend(0.)
+        .extend(1.);
+    let pos_in_map = trans.compute_matrix() * pos;
+    pos_in_map.xy()
 }
