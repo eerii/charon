@@ -5,6 +5,7 @@ mod game;
 mod input;
 mod load;
 mod menu;
+mod spirits;
 mod tilemap;
 mod ui;
 
@@ -33,6 +34,7 @@ impl Plugin for GamePlugin {
             audio::AudioPlugin,
             tilemap::TilePlugin,
             game::CharonPlugin,
+            spirits::SpiritPlugin,
         ));
 
         #[cfg(debug_assertions)]
