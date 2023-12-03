@@ -1,9 +1,17 @@
+#![allow(clippy::type_complexity)]
+
 use bevy::prelude::*;
-use bevy_ecs_tilemap::prelude::*;
+use bevy_ecs_tilemap::{helpers::square_grid::neighbors::SquareDirection, prelude::*};
+use bevy_persistent::Persistent;
 
-use crate::{input::MousePosition, load::TilemapAssets, GameState};
+use crate::{
+    config::Keybinds,
+    input::{Bind, MousePosition},
+    load::TilemapAssets,
+    GameState,
+};
 
-const MAP_SIZE: TilemapSize = TilemapSize { x: 14, y: 10 };
+const MAP_SIZE: TilemapSize = TilemapSize { x: 15, y: 10 };
 const TILE_SIZE: TilemapTileSize = TilemapTileSize { x: 64., y: 64. };
 const GRID_SIZE: TilemapGridSize = TilemapGridSize { x: 72., y: 72. };
 
@@ -17,10 +25,25 @@ impl Plugin for TilePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(TilemapPlugin)
             .add_systems(OnEnter(GameState::Play), init_tilemap)
-            .add_systems(Update, select_tile)
-            .add_systems(PostUpdate, highlight_selected_tile);
+            .add_systems(
+                Update,
+                (
+                    select_tile,
+                    click_tile,
+                    astar.run_if(not(resource_exists::<AstarMap>())),
+                )
+                    .run_if(in_state(GameState::Play)),
+            )
+            .add_systems(PostUpdate, highlight_tile.run_if(in_state(GameState::Play)));
     }
 }
+
+// ·········
+// Resources
+// ·········
+
+#[derive(Resource)]
+pub struct AstarMap;
 
 // ··········
 // Components
@@ -28,6 +51,15 @@ impl Plugin for TilePlugin {
 
 #[derive(Component)]
 pub struct SelectedTile;
+
+#[derive(Component)]
+pub struct StartTile;
+
+#[derive(Component)]
+pub struct EndTile;
+
+#[derive(Component)]
+pub struct PathTile(u32);
 
 // ·······
 // Systems
@@ -51,6 +83,11 @@ fn init_tilemap(mut cmd: Commands, tiles: Res<TilemapAssets>) {
             storage.set(&pos, tile);
         }
     }
+
+    cmd.entity(storage.get(&TilePos { x: 0, y: 3 }).unwrap())
+        .insert(StartTile);
+    cmd.entity(storage.get(&TilePos { x: 14, y: 7 }).unwrap())
+        .insert(EndTile);
 
     // Create tilemap
     let map_type = TilemapType::default();
@@ -103,12 +140,92 @@ fn select_tile(
     }
 }
 
-fn highlight_selected_tile(mut tile: Query<(&mut TileColor, Option<&SelectedTile>)>) {
-    for (mut color, selected) in tile.iter_mut() {
-        if selected.is_some() {
-            *color = TileColor(Color::GREEN);
+fn click_tile(
+    mut cmd: Commands,
+    mut selected: Query<Entity, With<SelectedTile>>,
+    path: Query<Entity, With<PathTile>>,
+    start_finish: Query<Entity, Or<(With<StartTile>, With<EndTile>)>>,
+    input: Res<Input<Bind>>,
+    keybinds: Res<Persistent<Keybinds>>,
+    mut is_selecting: Local<Option<bool>>,
+) {
+    let select = keybinds.interact.iter().any(|bind| {
+        if is_selecting.is_none() {
+            input.just_pressed(*bind)
         } else {
-            *color = TileColor(Color::WHITE);
+            input.pressed(*bind)
+        }
+    });
+
+    if select {
+        if let Ok(entity) = selected.get_single_mut() {
+            let is_path = path.get(entity).is_ok();
+            let is_start_finish = start_finish.get(entity).is_ok();
+
+            if is_selecting.is_none() {
+                *is_selecting = Some(is_path);
+            }
+
+            if is_path != *is_selecting.as_ref().unwrap() {
+                return;
+            }
+
+            if is_path {
+                cmd.entity(entity).remove::<PathTile>();
+            } else if !is_start_finish {
+                cmd.entity(entity).insert(PathTile(0));
+            }
+
+            return;
         }
     }
+
+    *is_selecting = None;
+}
+
+fn highlight_tile(
+    mut tiles: Query<(
+        &mut TileColor,
+        Option<&SelectedTile>,
+        Option<&PathTile>,
+        Option<&StartTile>,
+        Option<&EndTile>,
+    )>,
+) {
+    for (mut color, selected, path, start, end) in tiles.iter_mut() {
+        if selected.is_some() {
+            *color = TileColor(Color::ALICE_BLUE);
+        } else if path.is_some() {
+            *color = TileColor(Color::ORANGE);
+        } else if start.is_some() || end.is_some() {
+            *color = TileColor(Color::rgb(0.3, 0.4, 1.0));
+        } else {
+            *color = TileColor(Color::SEA_GREEN);
+        }
+    }
+}
+
+fn astar(
+    mut cmd: Commands,
+    tilemap: Query<(&TilemapSize, &TileStorage)>,
+    start: Query<&TilePos, With<StartTile>>,
+    end: Query<&TilePos, With<EndTile>>,
+    mut paths: Query<(&mut PathTile, &TilePos)>,
+) {
+    if let Ok((size, storage)) = tilemap.get_single() {
+        if let (Ok(start), Ok(end)) = (start.get_single(), end.get_single()) {
+            info!("Start: {:?}, End: {:?}", start, end);
+
+            if let Some(next_pos) = start.diamond_offset(&SquareDirection::East, size) {
+                if let Some(next) = storage.checked_get(&next_pos) {
+                    if let Ok((mut path, pos)) = paths.get_mut(next) {
+                        *path = PathTile(1);
+                        info!("Next: {:?}", pos);
+                    }
+                }
+            }
+        }
+    }
+
+    cmd.insert_resource(AstarMap);
 }

@@ -76,17 +76,20 @@ fn init_splash(mut cmd: Commands, node: Query<Entity, With<UiNode>>, assets: Res
     if let Ok(node) = node.get_single() {
         if let Some(mut node) = cmd.get_entity(node) {
             node.with_children(|parent| {
-                parent.spawn(ImageBundle {
-                    image: UiImage {
-                        texture: assets.bevy_icon.clone(),
+                parent.spawn((
+                    ImageBundle {
+                        image: UiImage {
+                            texture: assets.bevy_icon.clone(),
+                            ..default()
+                        },
+                        style: Style {
+                            width: Val::Px(128.),
+                            ..default()
+                        },
                         ..default()
                     },
-                    style: Style {
-                        width: Val::Px(128.),
-                        ..default()
-                    },
-                    ..default()
-                });
+                    UI_LAYER,
+                ));
             });
         }
     }
@@ -134,29 +137,35 @@ fn check_progress(
                 if let Some(mut entity) = cmd.get_entity(node) {
                     entity.with_children(|parent| {
                         // Loading text
-                        parent.spawn(TextBundle {
-                            text: Text::from_section(
-                                "Loading",
-                                TextStyle {
-                                    font: assets.font.clone(),
-                                    font_size: 48.,
-                                    color: opts.color.mid,
-                                },
-                            ),
-                            ..default()
-                        });
+                        parent.spawn((
+                            TextBundle {
+                                text: Text::from_section(
+                                    "Loading",
+                                    TextStyle {
+                                        font: assets.font.clone(),
+                                        font_size: 48.,
+                                        color: opts.color.mid,
+                                    },
+                                ),
+                                ..default()
+                            },
+                            UI_LAYER,
+                        ));
 
                         // Progress bar
                         parent
-                            .spawn(NodeBundle {
-                                style: Style {
-                                    width: Val::Percent(70.),
-                                    height: Val::Px(32.),
+                            .spawn((
+                                NodeBundle {
+                                    style: Style {
+                                        width: Val::Percent(70.),
+                                        height: Val::Px(32.),
+                                        ..default()
+                                    },
+                                    background_color: opts.color.dark.into(),
                                     ..default()
                                 },
-                                background_color: opts.color.dark.into(),
-                                ..default()
-                            })
+                                UI_LAYER,
+                            ))
                             .with_children(|parent| {
                                 parent.spawn((
                                     NodeBundle {
@@ -171,6 +180,7 @@ fn check_progress(
                                         background_color: opts.color.light.into(),
                                         ..default()
                                     },
+                                    UI_LAYER,
                                     ProgressBar,
                                 ));
                             });

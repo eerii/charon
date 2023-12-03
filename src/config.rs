@@ -48,16 +48,14 @@ pub struct ColorPalette {
     pub light: Color,
     pub mid: Color,
     pub dark: Color,
-    pub darker: Color,
 }
 
 impl Default for ColorPalette {
     fn default() -> Self {
         Self {
-            light: Color::rgb(245.0 / 255.0, 237.0 / 255.0, 200.0 / 255.0),
-            mid: Color::rgb(69.0 / 255.0, 173.0 / 255.0, 118.0 / 255.0),
-            dark: Color::rgb(43.0 / 255.0, 115.0 / 255.0, 77.0 / 255.0),
-            darker: Color::rgb(55.0 / 255.0, 84.0 / 255.0, 70.0 / 255.0),
+            light: Color::rgb(225.0 / 255.0, 224.0 / 255.0, 122.0 / 255.0),
+            mid: Color::rgb(175.0 / 255.0, 204.0 / 255.0, 90.0 / 255.0),
+            dark: Color::rgb(18.0 / 255.0, 13.0 / 255.0, 26.0 / 255.0),
         }
     }
 }
@@ -72,13 +70,7 @@ pub struct GameOptions {
 
 #[derive(Resource, Serialize, Deserialize, Reflect)]
 pub struct Keybinds {
-    pub up: Vec<Bind>,
-    pub down: Vec<Bind>,
-    pub left: Vec<Bind>,
-    pub right: Vec<Bind>,
-    pub jump: Vec<Bind>,
     pub interact: Vec<Bind>,
-    pub inventory: Vec<Bind>,
     pub pause: Vec<Bind>,
 }
 
@@ -94,34 +86,10 @@ impl Keybinds {
 impl Default for Keybinds {
     fn default() -> Self {
         Self {
-            up: vec![
-                Bind::Key(KeyCode::W),
-                Bind::Gamepad(GamepadButtonType::DPadUp),
-            ],
-            down: vec![
-                Bind::Key(KeyCode::S),
-                Bind::Gamepad(GamepadButtonType::DPadDown),
-            ],
-            left: vec![
-                Bind::Key(KeyCode::A),
-                Bind::Gamepad(GamepadButtonType::DPadLeft),
-            ],
-            right: vec![
-                Bind::Key(KeyCode::D),
-                Bind::Gamepad(GamepadButtonType::DPadRight),
-            ],
-            jump: vec![
-                Bind::Key(KeyCode::Space),
-                Bind::Gamepad(GamepadButtonType::South),
-            ],
             interact: vec![
                 Bind::Key(KeyCode::E),
                 Bind::Mouse(MouseButton::Left),
                 Bind::Gamepad(GamepadButtonType::East),
-            ],
-            inventory: vec![
-                Bind::Key(KeyCode::Tab),
-                Bind::Gamepad(GamepadButtonType::West),
             ],
             pause: vec![
                 Bind::Key(KeyCode::Escape),

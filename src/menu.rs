@@ -84,7 +84,6 @@ enum MenuButton {
     RemapKeybind(String),
     ResetKeybinds,
     ChangeFont(String),
-    ChangeColor(String, String),
 }
 
 // ·······
@@ -99,7 +98,7 @@ fn init_menu(
 ) {
     if let Ok((node, mut bg)) = node.get_single_mut() {
         cmd.insert_resource(MenuStarting);
-        *bg = opts.color.darker.into();
+        *bg = opts.color.dark.into();
         layout_main(cmd, node, &style);
     }
 }
@@ -174,14 +173,11 @@ fn handle_buttons(
                             })
                             .unwrap_or_else(|e| error!("Failed to change font size: {}", e));
                         }
-                        MenuButton::ChangeColor(_, _) => {
-                            // TODO: Change color (Needs either a color picker or an input field)
-                        }
                     }
                 }
                 Interaction::Hovered => {
                     bg.0 = opts.color.mid;
-                    text.sections[0].style.color = opts.color.darker;
+                    text.sections[0].style.color = opts.color.dark;
                 }
                 Interaction::None => {
                     bg.0 = opts.color.light;
@@ -322,7 +318,7 @@ fn remap_keybind(
 fn layout_main(mut cmd: Commands, node: Entity, style: &UIStyle) {
     if let Some(mut node) = cmd.get_entity(node) {
         node.with_children(|parent| {
-            UIText::new(style, "Hello Bevy").with_title().add(parent);
+            UIText::new(style, "Charon").with_title().add(parent);
 
             UIButton::new(style, "Play", MenuButton::Play).add(parent);
             UIButton::new(style, "Settings", MenuButton::GoSettings).add(parent);
@@ -408,37 +404,6 @@ fn layout_visual(mut cmd: Commands, node: Entity, style: &UIStyle, opts: &GameOp
                             style,
                             &format!("{}", value),
                             MenuButton::ChangeFont(field_name),
-                        )
-                        .with_width(Val::Px(40.))
-                        .add(row);
-                    });
-                }
-            }
-
-            for (i, value) in opts.color.iter_fields().enumerate() {
-                let field_name = format!("color_{}", opts.color.name_at(i).unwrap());
-                if let Some(value) = value.downcast_ref::<Color>() {
-                    UIOption::new(style, &field_name).add(parent, |row| {
-                        UIButton::new(
-                            style,
-                            &format!("{:.0}", value.r() * 255.),
-                            MenuButton::ChangeColor(field_name.clone(), "r".to_string()),
-                        )
-                        .with_width(Val::Px(40.))
-                        .add(row);
-
-                        UIButton::new(
-                            style,
-                            &format!("{:.0}", value.g() * 255.),
-                            MenuButton::ChangeColor(field_name.clone(), "g".to_string()),
-                        )
-                        .with_width(Val::Px(40.))
-                        .add(row);
-
-                        UIButton::new(
-                            style,
-                            &format!("{:.0}", value.b() * 255.),
-                            MenuButton::ChangeColor(field_name.clone(), "b".to_string()),
                         )
                         .with_width(Val::Px(40.))
                         .add(row);

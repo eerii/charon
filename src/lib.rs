@@ -1,13 +1,15 @@
-mod audio;
-mod config;
+pub mod audio;
+pub mod config;
 mod debug;
-mod input;
-mod load;
+pub mod input;
+pub mod load;
 mod menu;
-mod tilemap;
-mod ui;
+pub mod tilemap;
+pub mod ui;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, render::view::RenderLayers, sprite::MaterialMesh2dBundle};
+use bevy_persistent::Persistent;
+use config::GameOptions;
 
 // Game state
 #[derive(States, Debug, Default, Clone, Eq, PartialEq, Hash)]
@@ -38,5 +40,34 @@ impl Plugin for GamePlugin {
             app.add_plugins(debug::DebugPlugin);
             debug::save_schedule(app);
         }
+
+        app.add_systems(OnEnter(GameState::Play), init_game.run_if(run_once()));
     }
+}
+
+// TODO: Move this somewhere where it makes sense
+
+#[derive(Component)]
+pub struct GameCamera;
+
+fn init_game(
+    mut cmd: Commands,
+    opts: Res<Persistent<GameOptions>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    // Camera
+    cmd.spawn((
+        Camera2dBundle::default(),
+        RenderLayers::layer(0),
+        GameCamera,
+    ));
+
+    // Background
+    cmd.spawn(MaterialMesh2dBundle {
+        mesh: meshes.add(Mesh::from(shape::Quad::default())).into(),
+        transform: Transform::from_xyz(0., 0., -10.).with_scale(Vec3::new(1080., 720., 1.)),
+        material: materials.add(ColorMaterial::from(opts.color.dark)),
+        ..default()
+    });
 }
