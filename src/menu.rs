@@ -90,15 +90,10 @@ enum MenuButton {
 // Systems
 // ·······
 
-fn init_menu(
-    mut cmd: Commands,
-    style: Res<UIStyle>,
-    mut node: Query<(Entity, &mut BackgroundColor), With<UiNode>>,
-    opts: Res<Persistent<GameOptions>>,
-) {
-    if let Ok((node, mut bg)) = node.get_single_mut() {
+fn init_menu(mut cmd: Commands, style: Res<UIStyle>, mut node: Query<Entity, With<UiNode>>) {
+    // Main menu layout
+    if let Ok(node) = node.get_single_mut() {
         cmd.insert_resource(MenuStarting);
-        *bg = opts.color.dark.into();
         layout_main(cmd, node, &style);
     }
 }

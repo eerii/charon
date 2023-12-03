@@ -3,7 +3,7 @@ use std::path::Path;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{input::Bind, GameState};
+use crate::input::Bind;
 
 pub use bevy_persistent::prelude::*;
 
@@ -18,7 +18,7 @@ pub struct ConfigPlugin;
 
 impl Plugin for ConfigPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Loading), init_persistence);
+        app.add_systems(Startup, init_persistence);
     }
 }
 

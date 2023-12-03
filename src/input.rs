@@ -24,12 +24,9 @@ impl Plugin for InputPlugin {
             .add_systems(
                 PreUpdate,
                 (
-                    (
-                        handle_input_keyboard,
-                        handle_input_mouse,
-                        handle_input_gamepad,
-                    )
-                        .run_if(resource_exists::<Persistent<Keybinds>>()),
+                    handle_input_keyboard,
+                    handle_input_mouse,
+                    handle_input_gamepad,
                     handle_mouse_moved,
                 ),
             )

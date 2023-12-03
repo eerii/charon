@@ -1,14 +1,15 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, render::view::RenderLayers, sprite::MaterialMesh2dBundle};
 use bevy_persistent::Persistent;
 
 use crate::{config::GameOptions, load::GameAssets, GameState};
 
+pub const UI_LAYER: RenderLayers = RenderLayers::layer(1);
 const MENU_WIDTH: Val = Val::Px(300.);
 const MENU_ITEM_HEIGHT: Val = Val::Px(40.);
 const MENU_ITEM_GAP: Val = Val::Px(10.);
 
+// TODO: Inventory overlay ui
 // TODO: Tweening and animation (Look into https://github.com/djeedai/bevy_tweening)
-// TODO: Rounded button corners (Requires #8973 to be merged in 0.13)
 
 // ······
 // Plugin
@@ -55,9 +56,37 @@ pub struct UiNode;
 // Systems
 // ·······
 
-pub fn init_ui(mut cmd: Commands) {
-    cmd.spawn((Camera2dBundle::default(), UiCam));
+pub fn init_ui(
+    mut cmd: Commands,
+    opts: Res<Persistent<GameOptions>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    // UI Camera
+    cmd.spawn((
+        Camera2dBundle {
+            camera: Camera {
+                order: -10,
+                ..default()
+            },
+            ..default()
+        },
+        UI_LAYER,
+        UiCam,
+    ));
 
+    // Background
+    cmd.spawn((
+        MaterialMesh2dBundle {
+            mesh: meshes.add(Mesh::from(shape::Quad::default())).into(),
+            transform: Transform::from_xyz(0., 0., -10.).with_scale(Vec3::new(1080., 720., 1.)),
+            material: materials.add(ColorMaterial::from(opts.color.dark)),
+            ..default()
+        },
+        UI_LAYER,
+    ));
+
+    // Main node
     cmd.spawn((
         NodeBundle {
             style: Style {
@@ -71,6 +100,7 @@ pub fn init_ui(mut cmd: Commands) {
             },
             ..default()
         },
+        UI_LAYER,
         UiNode,
     ));
 }
@@ -139,7 +169,7 @@ impl<'a> UIText<'a> {
     }
 
     pub fn add(self, parent: &mut ChildBuilder) {
-        parent.spawn(self.text);
+        parent.spawn((self.text, UI_LAYER));
     }
 }
 
@@ -177,9 +207,9 @@ impl<T: Component> UIButton<T> {
     pub fn add(self, parent: &mut ChildBuilder) {
         let _text = self.text.text.sections[0].value.clone();
         let _id = parent
-            .spawn((self.button, self.action))
+            .spawn((self.button, self.action, UI_LAYER))
             .with_children(|button| {
-                button.spawn(self.text);
+                button.spawn((self.text, UI_LAYER));
             })
             .id();
     }
@@ -214,7 +244,7 @@ impl<'a> UIOption<'a> {
     }
 
     pub fn add(self, parent: &mut ChildBuilder, children: impl FnOnce(&mut ChildBuilder)) {
-        parent.spawn(self.row).with_children(|row| {
+        parent.spawn((self.row, UI_LAYER)).with_children(|row| {
             self.label.add(row);
             children(row);
         });

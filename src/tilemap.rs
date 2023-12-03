@@ -11,6 +11,10 @@ use crate::{
     GameState,
 };
 
+// TODO: Astar algorithm to generate pathfinding
+// TODO: Run astar only when some tile change
+// TODO: Automatically select path sprite (corner, straight, intersection)
+
 const MAP_SIZE: TilemapSize = TilemapSize { x: 15, y: 10 };
 const TILE_SIZE: TilemapTileSize = TilemapTileSize { x: 64., y: 64. };
 const GRID_SIZE: TilemapGridSize = TilemapGridSize { x: 72., y: 72. };
@@ -24,7 +28,7 @@ pub struct TilePlugin;
 impl Plugin for TilePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(TilemapPlugin)
-            .add_systems(OnEnter(GameState::Play), init_tilemap)
+            .add_systems(OnEnter(GameState::Play), init_tilemap.run_if(run_once()))
             .add_systems(
                 Update,
                 (
@@ -192,7 +196,7 @@ fn highlight_tile(
 ) {
     for (mut tex, selected, path, start, end) in tiles.iter_mut() {
         if selected.is_some() {
-            *tex = TileTextureIndex(0);
+            *tex = TileTextureIndex(3);
         } else if path.is_some() {
             *tex = TileTextureIndex(1);
         } else if start.is_some() || end.is_some() {

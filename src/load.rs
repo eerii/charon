@@ -8,7 +8,7 @@ use bevy_persistent::Persistent;
 use iyes_progress::prelude::*;
 
 #[cfg(debug_assertions)]
-pub const SPLASH_TIME: f32 = 2.;
+pub const SPLASH_TIME: f32 = 0.1;
 #[cfg(not(debug_assertions))]
 pub const SPLASH_TIME: f32 = 2.;
 
@@ -26,14 +26,11 @@ impl Plugin for LoadPlugin {
             .add_plugins((ProgressPlugin::new(GameState::Loading)
                 .continue_to(GameState::Menu)
                 .track_assets(),))
+            .add_systems(OnEnter(GameState::Loading), init_splash)
             .add_systems(OnExit(GameState::Loading), clear_loading)
             .add_systems(
                 Update,
-                (
-                    init_splash,
-                    check_splash_finished.track_progress(),
-                    check_progress,
-                )
+                (check_splash_finished.track_progress(), check_progress)
                     .run_if(in_state(GameState::Loading))
                     .after(LoadingStateSet(GameState::Loading)),
             );
@@ -88,17 +85,20 @@ fn init_splash(
     if let Ok(node) = node.get_single() {
         if let Some(mut node) = cmd.get_entity(node) {
             node.with_children(|parent| {
-                parent.spawn((ImageBundle {
-                    image: UiImage {
-                        texture: assets.bevy_icon.clone(),
+                parent.spawn((
+                    ImageBundle {
+                        image: UiImage {
+                            texture: assets.bevy_icon.clone(),
+                            ..default()
+                        },
+                        style: Style {
+                            width: Val::Px(128.),
+                            ..default()
+                        },
                         ..default()
                     },
-                    style: Style {
-                        width: Val::Px(128.),
-                        ..default()
-                    },
-                    ..default()
-                },));
+                    UI_LAYER,
+                ));
             });
 
             *has_init = true;
@@ -148,29 +148,35 @@ fn check_progress(
                 if let Some(mut entity) = cmd.get_entity(node) {
                     entity.with_children(|parent| {
                         // Loading text
-                        parent.spawn((TextBundle {
-                            text: Text::from_section(
-                                "Loading",
-                                TextStyle {
-                                    font: assets.font.clone(),
-                                    font_size: 48.,
-                                    color: opts.color.mid,
-                                },
-                            ),
-                            ..default()
-                        },));
+                        parent.spawn((
+                            TextBundle {
+                                text: Text::from_section(
+                                    "Loading",
+                                    TextStyle {
+                                        font: assets.font.clone(),
+                                        font_size: 48.,
+                                        color: opts.color.mid,
+                                    },
+                                ),
+                                ..default()
+                            },
+                            UI_LAYER,
+                        ));
 
                         // Progress bar
                         parent
-                            .spawn((NodeBundle {
-                                style: Style {
-                                    width: Val::Percent(70.),
-                                    height: Val::Px(32.),
+                            .spawn((
+                                NodeBundle {
+                                    style: Style {
+                                        width: Val::Percent(70.),
+                                        height: Val::Px(32.),
+                                        ..default()
+                                    },
+                                    background_color: opts.color.dark.into(),
                                     ..default()
                                 },
-                                background_color: opts.color.dark.into(),
-                                ..default()
-                            },))
+                                UI_LAYER,
+                            ))
                             .with_children(|parent| {
                                 parent.spawn((
                                     NodeBundle {
@@ -185,6 +191,7 @@ fn check_progress(
                                         background_color: opts.color.light.into(),
                                         ..default()
                                     },
+                                    UI_LAYER,
                                     ProgressBar,
                                 ));
                             });
