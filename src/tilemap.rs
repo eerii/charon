@@ -1,4 +1,7 @@
+#![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]
+
+use std::collections::{HashMap, VecDeque};
 
 use bevy::prelude::*;
 use bevy_ecs_tilemap::{helpers::square_grid::neighbors::SquareDirection, prelude::*};
@@ -11,9 +14,8 @@ use crate::{
     GameState,
 };
 
-// TODO: Astar algorithm to generate pathfinding
-// TODO: Run astar only when some tile change
 // TODO: Automatically select path sprite (corner, straight, intersection)
+// TODO: Multiple start/end points
 
 const MAP_SIZE: TilemapSize = TilemapSize { x: 15, y: 10 };
 const TILE_SIZE: TilemapTileSize = TilemapTileSize { x: 64., y: 64. };
@@ -152,6 +154,8 @@ fn click_tile(
     mut changed: ResMut<TileChanged>,
     mut prev: Local<Option<(bool, Option<TilePos>, Option<TilePos>)>>,
 ) {
+    // TODO: Make sure that the paths are adjacent, maybe change the way they are drawn
+
     let select = keybinds.interact.iter().any(|bind| {
         if prev.is_none() {
             input.just_pressed(*bind)
@@ -192,14 +196,14 @@ fn click_tile(
 
                             // If the new tile is also a neighbour of the one two ago, delete the previous one
                             if prev_neighbours.iter().any(|p| p == pos) {
-                                let entity = storage.get(&one).unwrap();
+                                let entity = storage.get(one).unwrap();
                                 cmd.entity(entity).remove::<PathTile>();
-                                one_ago.replace(pos.clone());
+                                one_ago.replace(*pos);
                                 return;
                             }
                         }
                     }
-                    *two_ago = one_ago.replace(pos.clone());
+                    *two_ago = one_ago.replace(*pos);
                 }
             }
             return;
@@ -224,8 +228,8 @@ fn highlight_tile(
             *tex = TileTextureIndex(3);
         } else if path.is_some() {
             *tex = TileTextureIndex(3);
-            if let Some(value) = path.unwrap().0 {
-                *color = TileColor(Color::rgb(value as f32 / 20., 1. - value as f32 / 20., 0.));
+            if let Some(i) = path.unwrap().0 {
+                *color = TileColor(Color::rgb(i / 30., 1. - i / 30., 0.));
             }
         } else if start.is_some() || end.is_some() {
             *tex = TileTextureIndex(2);
@@ -243,35 +247,29 @@ fn pathfinding(
 ) {
     if let Ok((size, storage)) = tilemap.get_single() {
         if let (Ok(start), Ok(end)) = (start.get_single(), end.get_single()) {
-            let mut open = PriorityQueue::new(end.clone());
+            let mut open = PathfindingQueue::new(*end);
             let mut closed = Vec::new();
-            open.push(start.clone(), 0.);
+
+            open.push(*start, None, 0.);
 
             // Iterate the pathfinding queue
             while !open.is_empty() {
-                let (current, g) = open.pop().unwrap();
+                let (current, g, _) = open.pop().unwrap();
 
                 // Get the neighbouring tiles
                 let neighbours = get_neighbours(&current, size);
 
-                // TODO: Order with heuristic
                 for neighbour in neighbours {
                     // If the tile is already closed, skip it
                     if !closed.contains(&neighbour) {
                         if let Some(entity) = storage.get(&neighbour) {
-                            // If the goal is reached, stop
-                            if neighbour == *end {
-                                break;
-                            }
-
-                            match paths.get_mut(entity) {
+                            if let Ok(mut path) = paths.get_mut(entity) {
                                 // If the tile is a path, update its value and add it to the queue
-                                Ok(mut path) => {
-                                    path.0 = Some(g + 1.);
-                                    open.push(neighbour, path.0.unwrap());
-                                }
-                                // If it is not, skip it
-                                Err(_) => continue,
+                                open.push(neighbour, Some(current), g + 1.);
+                                path.0 = None;
+                            } else if neighbour == *end {
+                                // If the tile is the end, finish the queue
+                                open.push(neighbour, Some(current), g + 1.);
                             }
                         }
                     }
@@ -279,6 +277,16 @@ fn pathfinding(
 
                 // Mark the current tile as done
                 closed.push(current);
+            }
+
+            // Create the paths and update the tiles
+            let built_paths = open.create_paths();
+            for (pos, i) in built_paths {
+                if let Some(entity) = storage.get(&pos) {
+                    if let Ok(mut path) = paths.get_mut(entity) {
+                        path.0 = Some(i as f32);
+                    }
+                }
             }
         }
     }
@@ -295,43 +303,105 @@ const DIRECTIONS: [SquareDirection; 4] = [
     SquareDirection::West,
 ];
 
-struct PriorityQueue {
-    heap: Vec<(TilePos, f32)>,
+struct PathfindingQueue {
+    heap: Vec<(TilePos, f32, f32)>,
+    came_from: HashMap<TilePos, Vec<TilePos>>,
     end: TilePos,
 }
 
-impl PriorityQueue {
+impl PathfindingQueue {
     fn new(end: TilePos) -> Self {
         Self {
             heap: Vec::new(),
+            came_from: HashMap::new(),
             end,
         }
     }
 
-    fn push(&mut self, pos: TilePos, g: f32) {
-        // TODO: Fix multiple paths
-        if let Some((_, old_g)) = self.heap.iter().find(|(p, _)| p == &pos) {
-            if g < *old_g {
-                self.heap.retain(|(p, _)| p != &pos);
+    fn push(&mut self, pos: TilePos, from: Option<TilePos>, g: f32) {
+        self.heap.push((pos, g, heuristic(&pos, &self.end)));
+        self.heap
+            .sort_by(|(_, a_g, a_h), (_, b_g, b_h)| (a_g + a_h).partial_cmp(&(b_g + b_h)).unwrap());
+        self.heap.reverse();
+
+        if let Some(from) = from {
+            if let Some(path) = self.came_from.get_mut(&pos) {
+                path.push(from);
             } else {
-                return;
+                self.came_from.insert(pos, vec![from]);
             }
         }
-        self.heap.push((pos, g));
-        self.heap.sort_by(|(a_pos, a_g), (b_pos, b_g)| {
-            astar_f(a_pos, &self.end, *a_g)
-                .partial_cmp(&astar_f(b_pos, &self.end, *b_g))
-                .unwrap()
-        });
-        self.heap.reverse();
     }
 
-    fn pop(&mut self) -> Option<(TilePos, f32)> {
+    fn pop(&mut self) -> Option<(TilePos, f32, f32)> {
         self.heap.pop()
     }
 
     fn is_empty(&self) -> bool {
         self.heap.is_empty()
+    }
+
+    fn create_paths(&self) -> HashMap<TilePos, i32> {
+        let mut paths: HashMap<TilePos, i32> = HashMap::new();
+        let mut queue: VecDeque<(TilePos, i32)> = VecDeque::new();
+
+        paths.insert(self.end, 0);
+        queue.push_back((self.end, 0));
+
+        // Create finished paths
+        while let Some((node, priority)) = queue.pop_front() {
+            if let Some(neighbors) = self.came_from.get(&node) {
+                for neighbor in neighbors {
+                    let new_priority = priority + 1;
+                    match paths.get(neighbor) {
+                        Some(&current_priority) if current_priority < new_priority => (),
+                        _ => {
+                            paths.insert(*neighbor, new_priority);
+                            queue.push_back((*neighbor, new_priority));
+                        }
+                    }
+                }
+            }
+        }
+
+        // For each tile without a path, create a path
+        let outliers: Vec<TilePos> = self
+            .came_from
+            .keys()
+            .filter(|k| !paths.contains_key(k))
+            .cloned()
+            .collect();
+
+        let max_priority = *paths.values().max().unwrap_or(&0);
+        let main_paths: Vec<TilePos> = paths.keys().cloned().collect();
+
+        for outlier in &outliers {
+            let distance_to_main_path = main_paths
+                .iter()
+                .map(|main_path| manhattan_distance(outlier, main_path))
+                .min()
+                .unwrap_or(100000);
+            let priority = max_priority + distance_to_main_path;
+            paths.insert(*outlier, priority);
+            queue.push_back((*outlier, priority));
+        }
+
+        while let Some((node, priority)) = queue.pop_front() {
+            if let Some(neighbors) = self.came_from.get(&node) {
+                for neighbor in neighbors {
+                    let new_priority = priority + 1;
+                    match paths.get(neighbor) {
+                        Some(&current_priority) if current_priority < new_priority => (),
+                        _ => {
+                            paths.insert(*neighbor, new_priority);
+                            queue.push_back((*neighbor, new_priority));
+                        }
+                    }
+                }
+            }
+        }
+
+        paths
     }
 }
 
@@ -353,8 +423,10 @@ fn heuristic(pos: &TilePos, end: &TilePos) -> f32 {
     (dx * dx + dy * dy).sqrt()
 }
 
-fn astar_f(pos: &TilePos, end: &TilePos, g: f32) -> f32 {
-    g + heuristic(pos, end)
+pub fn manhattan_distance(pos1: &TilePos, pos2: &TilePos) -> i32 {
+    let dx = (pos1.x as i32 - pos2.x as i32).abs();
+    let dy = (pos1.y as i32 - pos2.y as i32).abs();
+    dx + dy
 }
 
 pub fn pos_to_tile(

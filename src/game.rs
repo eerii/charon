@@ -2,10 +2,6 @@ use bevy::{prelude::*, render::view::RenderLayers};
 
 use crate::GameState;
 
-// TODO: Spawn entities, follow pathfinding
-// TODO: Collisions between entities (traffic)
-// TODO: Multiple spawn points
-
 pub struct CharonPlugin;
 
 impl Plugin for CharonPlugin {

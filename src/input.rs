@@ -7,7 +7,7 @@ use bevy::{
 use bevy_persistent::Persistent;
 use serde::{Deserialize, Serialize};
 
-use crate::config::Keybinds;
+use crate::{config::Keybinds, game::GameCam};
 
 // TODO: Mouse movement and gamepad axis
 
@@ -123,7 +123,7 @@ fn clear_input(mut input: ResMut<Input<Bind>>) {
 }
 
 fn handle_mouse_moved(
-    camera: Query<(&GlobalTransform, &Camera)>, // TODO: Create game camera and filter it here
+    camera: Query<(&GlobalTransform, &Camera), With<GameCam>>,
     mut events: EventReader<CursorMoved>,
     mut mouse: ResMut<MousePosition>,
 ) {

@@ -339,8 +339,6 @@ fn layout_keybinds(mut cmd: Commands, node: Entity, style: &UIStyle, keybinds: &
         node.with_children(|parent| {
             UIText::new(style, "Keybinds").with_title().add(parent);
 
-            // TODO: Scrollable section (Requires #8104 to be merged in 0.13)
-
             for (i, value) in keybinds.iter_fields().enumerate() {
                 let field_name = keybinds.name_at(i).unwrap();
                 if let Some(value) = value.downcast_ref::<Vec<Bind>>() {
