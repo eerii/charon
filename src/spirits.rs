@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
+use rand::seq::IteratorRandom;
 
 use crate::{
     load::GameAssets,
@@ -64,21 +65,28 @@ fn spawn_spirit(
     mut timer: ResMut<SpawnTimer>,
     time: Res<Time>,
     assets: Res<GameAssets>,
-    start: Query<&TilePos, With<StartTile>>,
+    start: Query<(&TilePos, &StartTile)>,
     tilemap: Query<(&TilemapGridSize, &TilemapType, &Transform)>,
     spirits: Query<&Transform, With<Spirit>>,
 ) {
     if timer.0.tick(time.delta()).just_finished() {
         if let Ok((grid_size, map_type, trans)) = tilemap.get_single() {
-            if let Ok(start) = start.get_single() {
-                let pos = tile_to_pos(start, grid_size, map_type, trans).extend(1.);
+            if let Ok((start_pos, start_tile)) = start.get_single() {
+                // Don't spawn entities if the path is not complete
+                if !start_tile.complete {
+                    return;
+                }
 
+                // Calculate the spawn position
+                // If there is already another entity, don't spawn
+                let pos = tile_to_pos(start_pos, grid_size, map_type, trans).extend(1.);
                 for trans in spirits.iter() {
                     if pos == trans.translation {
-                        continue;
+                        return;
                     }
                 }
 
+                // Spawn the entity at the start of the path
                 cmd.spawn((
                     SpriteBundle {
                         texture: assets.bevy_icon.clone(),
@@ -112,7 +120,7 @@ fn move_spirit(
 ) {
     if timer.0.tick(time.delta()).just_finished() {
         if let Ok((map_size, grid_size, map_type, storage, map_trans)) = tilemap.get_single() {
-            for (spirit_entity, mut trans, mut spirit) in spirit.iter_mut() {
+            for (spirit_entity, mut trans, spirit) in spirit.iter_mut() {
                 if let Some(tile_pos) = pos_to_tile(
                     &trans.translation.xy(),
                     map_size,
@@ -120,43 +128,81 @@ fn move_spirit(
                     map_type,
                     map_trans,
                 ) {
+                    // Get the score of the current path
                     let mut curr = std::f32::MAX;
                     if let Some(entity) = storage.get(&tile_pos) {
                         if let Ok((_, path)) = paths.get(entity) {
-                            if let Some(i) = path.0 {
-                                curr = i;
-                            }
+                            curr = path.distance;
                         }
                     };
 
+                    // Get and update the path the entity was the previous frame
                     let prev = spirit.prev.unwrap_or(tile_pos);
 
-                    let neighbours = get_neighbours(&tile_pos, map_size);
-                    let next_it = neighbours
+                    // Get the possible next tiles (they must be paths)
+                    let neighbour_list = get_neighbours(&tile_pos, map_size);
+                    let mut neighbours = neighbour_list
                         .iter()
                         .filter_map(|pos| storage.get(pos))
                         .filter_map(|entity| {
                             if let Ok((pos, path)) = paths.get(entity) {
-                                if pos == &prev {
-                                    None
-                                } else if let Some(i) = path.0 {
-                                    if i <= curr {
-                                        Some((pos, i))
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
+                                Some((pos, path))
                             } else {
                                 None
                             }
-                        });
+                        })
+                        .peekable();
+
+                    // If there are no surrounding paths, check if the spirit is on a path
+                    // If it is not, despawn
+                    if neighbours.peek().is_none() {
+                        if let Some(entity) = storage.get(&tile_pos) {
+                            if paths.get(entity).is_err() {
+                                cmd.get_entity(spirit_entity).unwrap().despawn_recursive();
+                            }
+                        }
+                    }
+
+                    // Choose the next tile to move to
+                    // For this, it must have a path score less than the current one, or else it will stay put
+                    let mut next = neighbours
+                        .clone()
+                        .filter(|(pos, path)| **pos != prev && path.distance < curr)
+                        .peekable();
+
+                    // It favours that the tile is not the previous one, but if there is no other option, it will move back
+                    // TODO:
+
+                    // From the possible next tiles, it chooses the one with the lowest score
+                    if next.peek().is_none() {
+                        continue;
+                    }
+                    let min_score = next
+                        .peek()
+                        .iter()
+                        .min_by(|(_, a), (_, b)| {
+                            a.distance
+                                .partial_cmp(&b.distance)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        })
+                        .unwrap()
+                        .1
+                        .distance;
+                    let next = next
+                        .filter(|(_, path)| path.distance == min_score)
+                        .map(|(pos, _)| pos)
+                        .collect::<Vec<_>>();
+
+                    // If two tiles have the same score, it chooses one at random
+                    let next = next.iter().choose(&mut rand::thread_rng());
+
+                    // If there is no next tile, you have been stuck, despawn
+                    if next.is_none() && prev == tile_pos {
+                        cmd.get_entity(spirit_entity).unwrap().despawn_recursive();
+                    }
 
                     // Move to next tile
-                    if let Some((next, _)) =
-                        next_it.min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-                    {
+                    if let Some(next) = next {
                         let new_pos = tile_to_pos(next, grid_size, map_type, map_trans);
 
                         // TODO: Check if there is a spirit on the next tile
@@ -176,16 +222,7 @@ fn move_spirit(
                                 }
                             }
                         }
-                    } else {
-                        // If there is no next tile and you have been stuck, despawn
-                        if let Some(prev) = spirit.prev {
-                            if prev == tile_pos {
-                                cmd.get_entity(spirit_entity).unwrap().despawn_recursive();
-                            }
-                        }
                     }
-
-                    spirit.prev = Some(tile_pos);
                 }
             }
         }
