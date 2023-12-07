@@ -66,7 +66,7 @@ pub struct SelectedTile;
 
 #[derive(Component, Default)]
 pub struct StartTile {
-    pub complete: bool,
+    pub completed_once: bool,
 }
 
 #[derive(Component)]
@@ -75,12 +75,14 @@ pub struct EndTile;
 #[derive(Component, Clone)]
 pub struct PathTile {
     pub distance: f32,
+    pub count: u32,
 }
 
 impl Default for PathTile {
     fn default() -> Self {
         Self {
             distance: f32::INFINITY,
+            count: 0,
         }
     }
 }
@@ -112,7 +114,13 @@ fn init_tilemap(mut cmd: Commands, tile_assets: Res<TilemapAssets>) {
     cmd.entity(storage.get(&TilePos { x: 0, y: 3 }).unwrap())
         .insert((StartTile::default(), PathTile::default()));
     cmd.entity(storage.get(&TilePos { x: 14, y: 7 }).unwrap())
-        .insert((EndTile, PathTile::default()));
+        .insert((
+            EndTile,
+            PathTile {
+                distance: 0.,
+                ..default()
+            },
+        ));
 
     // Create tilemap
     let map_type = TilemapType::default();
@@ -301,8 +309,9 @@ fn pathfinding(
             }
 
             // Check if there is a path from the end to the start
-            start_tile.complete = distances.contains_key(start_pos);
-            info!("Pathfinding complete: {}", start_tile.complete);
+            if distances.contains_key(start_pos) {
+                start_tile.completed_once = true;
+            }
         }
     }
 }
