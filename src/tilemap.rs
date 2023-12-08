@@ -43,7 +43,7 @@ impl Plugin for TilePlugin {
                 PostUpdate,
                 (
                     highlight_tile,
-                    pathfinding.run_if(resource_changed::<TileChanged>()),
+                    (autotile, pathfinding).run_if(resource_changed::<TileChanged>()),
                 )
                     .run_if(in_state(GameState::Play)),
             );
@@ -72,10 +72,22 @@ pub struct StartTile {
 #[derive(Component)]
 pub struct EndTile;
 
+#[derive(Clone)]
+pub enum PathShape {
+    None,
+    End,
+    Straight,
+    Turn,
+    Junction,
+    Crossing,
+}
+
 #[derive(Component, Clone)]
 pub struct PathTile {
     pub distance: f32,
     pub count: u32,
+    pub shape: PathShape,
+    pub rot: u32,
 }
 
 impl Default for PathTile {
@@ -83,6 +95,8 @@ impl Default for PathTile {
         Self {
             distance: f32::INFINITY,
             count: 0,
+            shape: PathShape::End,
+            rot: 0,
         }
     }
 }
@@ -240,26 +254,37 @@ fn highlight_tile(
     mut tiles: Query<(
         &mut TileTextureIndex,
         &mut TileColor,
+        &mut TileFlip,
         Option<&SelectedTile>,
         Option<&PathTile>,
         Option<&StartTile>,
         Option<&EndTile>,
     )>,
 ) {
-    for (mut tex, mut color, selected, path, start, end) in tiles.iter_mut() {
+    for (mut tex, mut color, mut flip, selected, path, start, end) in tiles.iter_mut() {
         *color = TileColor::default();
         if selected.is_some() {
             *tex = TileTextureIndex(3);
-        } else if start.is_some() || end.is_some() {
+        } else if start.is_some() {
             *tex = TileTextureIndex(2);
+        } else if end.is_some() {
+            *tex = TileTextureIndex(1);
         } else if path.is_some() {
-            *tex = TileTextureIndex(3);
             let dist = path.unwrap().distance;
             *color = if dist < std::f32::INFINITY {
                 TileColor(Color::rgb(dist / 25., 1. - dist / 25., (dist - 20.) / 50.))
             } else {
                 TileColor::default()
             };
+            *tex = match path.unwrap().shape {
+                PathShape::None => TileTextureIndex(3),
+                PathShape::End => TileTextureIndex(4),
+                PathShape::Straight => TileTextureIndex(5),
+                PathShape::Turn => TileTextureIndex(6),
+                PathShape::Junction => TileTextureIndex(7),
+                PathShape::Crossing => TileTextureIndex(8),
+            };
+            *flip = flip_from_rotation(path.unwrap().rot);
         } else {
             *tex = TileTextureIndex(0);
         }
@@ -316,15 +341,115 @@ fn pathfinding(
     }
 }
 
+fn autotile(
+    tilemap: Query<(&TilemapSize, &TileStorage)>,
+    mut paths: Query<(&TilePos, &mut PathTile)>,
+) {
+    if let Ok((size, storage)) = tilemap.get_single() {
+        let mut path_shapes = HashMap::new();
+
+        for (pos, _) in paths.iter() {
+            let neighbours = get_neighbours(pos, size);
+
+            // Get the neighbouring tiles
+            let neighbours = neighbours
+                .iter()
+                .filter_map(|pos| storage.get(pos))
+                .filter_map(|entity| {
+                    if let Ok((pos, _)) = paths.get(entity) {
+                        Some(pos)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            // Get the shape of the path
+            let shape = match neighbours.len() {
+                1 => PathShape::End,
+                2 => {
+                    if neighbours[0].x == neighbours[1].x || neighbours[0].y == neighbours[1].y {
+                        PathShape::Straight
+                    } else {
+                        PathShape::Turn
+                    }
+                }
+                3 => PathShape::Junction,
+                4 => PathShape::Crossing,
+                _ => PathShape::None,
+            };
+
+            // Get the rotation
+            let rot = match shape {
+                PathShape::End => {
+                    if neighbours.is_empty() || neighbours[0].x < pos.x {
+                        0
+                    } else if neighbours[0].x > pos.x {
+                        2
+                    } else if neighbours[0].y < pos.y {
+                        1
+                    } else {
+                        3
+                    }
+                }
+                PathShape::Straight => {
+                    if neighbours[0].x == neighbours[1].x {
+                        1
+                    } else {
+                        0
+                    }
+                }
+                PathShape::Turn => {
+                    if neighbours[0].x < neighbours[1].x {
+                        if neighbours[0].y > neighbours[1].y {
+                            1
+                        } else {
+                            0
+                        }
+                    } else if neighbours[0].y > neighbours[1].y {
+                        2
+                    } else {
+                        3
+                    }
+                }
+                PathShape::Junction => {
+                    if neighbours[0].y == neighbours[1].y {
+                        if neighbours[0].y < neighbours[2].y {
+                            0
+                        } else {
+                            2
+                        }
+                    } else if neighbours[0].x < neighbours[2].x {
+                        1
+                    } else {
+                        3
+                    }
+                }
+                _ => 0,
+            };
+
+            path_shapes.insert(*pos, (shape, rot));
+        }
+
+        for (pos, mut path) in paths.iter_mut() {
+            let (shape, rot) = path_shapes.get(pos).unwrap();
+
+            path.shape = shape.clone();
+            path.rot = *rot;
+        }
+    }
+}
+
 // ·····
 // Extra
 // ·····
 
 const DIRECTIONS: [SquareDirection; 4] = [
+    // DONT CHANGE THE ORDER, BREAKS AUTOTILING
+    SquareDirection::West,
     SquareDirection::East,
     SquareDirection::North,
     SquareDirection::South,
-    SquareDirection::West,
 ];
 
 pub fn get_neighbours(pos: &TilePos, size: &TilemapSize) -> Vec<TilePos> {
@@ -388,4 +513,29 @@ pub fn tile_to_pos(
         .extend(1.);
     let pos_in_map = trans.compute_matrix() * pos;
     pos_in_map.xy()
+}
+
+pub fn flip_from_rotation(rot: u32) -> TileFlip {
+    match rot {
+        1 => TileFlip {
+            x: false,
+            y: true,
+            d: true,
+        },
+        2 => TileFlip {
+            x: true,
+            y: true,
+            d: false,
+        },
+        3 => TileFlip {
+            x: true,
+            y: false,
+            d: true,
+        },
+        _ => TileFlip {
+            x: false,
+            y: false,
+            d: false,
+        },
+    }
 }

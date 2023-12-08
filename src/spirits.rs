@@ -1,16 +1,17 @@
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
-use rand::seq::IteratorRandom;
+use rand::Rng;
 
 use crate::{
+    game::GameScore,
     load::GameAssets,
     tilemap::{get_neighbours, pos_to_tile, tile_to_pos, EndTile, PathTile, StartTile},
     GameState,
 };
 
-const SPIRIT_SPEED: f32 = 200.;
-const SPIRIT_SIZE: f32 = 50.;
-const MAX_SPIRITS_IN_TILE: u32 = 3;
+const SPIRIT_SPEED: f32 = 150.;
+const SPIRIT_SIZE: f32 = 40.;
+const MAX_SPIRITS_IN_TILE: u32 = 2;
 
 // ······
 // Plugin
@@ -27,6 +28,7 @@ impl Plugin for SpiritPlugin {
                 next_tile_spirit,
                 spirit_collision,
                 move_spirit,
+                integrate,
             )
                 .run_if(in_state(GameState::Play)),
         );
@@ -42,7 +44,7 @@ struct SpawnTimer(Timer);
 
 impl Default for SpawnTimer {
     fn default() -> Self {
-        Self(Timer::from_seconds(2.0, TimerMode::Repeating))
+        Self(Timer::from_seconds(0.5, TimerMode::Repeating))
     }
 }
 
@@ -52,10 +54,8 @@ impl Default for SpawnTimer {
 
 #[derive(Component)]
 pub struct Spirit {
-    prev_tile: TilePos,
     curr_tile: TilePos,
     next_tile: Option<TilePos>,
-    curr_pos: Vec2,
     next_pos: Vec2,
     vel: Vec2,
 }
@@ -63,11 +63,9 @@ pub struct Spirit {
 impl Spirit {
     pub fn new(curr_tile: TilePos, curr_pos: Vec2) -> Self {
         Self {
-            prev_tile: curr_tile,
             curr_tile,
             next_tile: None,
-            curr_pos,
-            next_pos: Vec2::ZERO,
+            next_pos: curr_pos,
             vel: Vec2::ZERO,
         }
     }
@@ -83,6 +81,7 @@ fn spawn_spirit(
     time: Res<Time>,
     assets: Res<GameAssets>,
     mut start: Query<(&TilePos, &StartTile, &mut PathTile)>,
+    spirits: Query<&Transform, With<Spirit>>,
     tilemap: Query<(&TilemapGridSize, &TilemapType, &Transform)>,
 ) {
     if timer.0.tick(time.delta()).just_finished() {
@@ -93,23 +92,29 @@ fn spawn_spirit(
                     return;
                 }
 
+                // Calculate the spawn position
+                let pos = tile_to_pos(start_pos, grid_size, map_type, trans);
+
                 // If there is already another entity there, don't spawn
                 if start_path.count >= 1 {
-                    return;
+                    // Check all spirits
+                    for spirit in spirits.iter() {
+                        if (spirit.translation.xy() - pos).length() < SPIRIT_SIZE {
+                            return;
+                        }
+                    }
                 }
                 start_path.count += 1;
-
-                // Calculate the spawn position
-                let pos = tile_to_pos(start_pos, grid_size, map_type, trans).extend(1.);
 
                 // Spawn the entity at the start of the path
                 cmd.spawn((
                     SpriteBundle {
                         texture: assets.bevy_icon.clone(),
-                        transform: Transform::from_translation(pos).with_scale(Vec3::splat(0.25)),
+                        transform: Transform::from_translation(pos.extend(1.))
+                            .with_scale(Vec3::splat(0.16)),
                         ..default()
                     },
-                    Spirit::new(*start_pos, pos.xy()),
+                    Spirit::new(*start_pos, pos),
                 ));
             }
         }
@@ -118,6 +123,7 @@ fn spawn_spirit(
 
 fn next_tile_spirit(
     mut cmd: Commands,
+    mut score: ResMut<GameScore>,
     mut spirit: Query<(Entity, &Transform, &mut Spirit)>,
     mut paths: Query<(&TilePos, &mut PathTile)>,
     end: Query<Entity, With<EndTile>>,
@@ -157,6 +163,7 @@ fn next_tile_spirit(
                     if let Some(entity) = storage.get(&tile_pos) {
                         if end.get(entity).is_ok() {
                             cmd.get_entity(spirit_entity).unwrap().despawn_recursive();
+                            score.score += 1;
                             continue;
                         }
                         if let Ok((_, path)) = paths.get(entity) {
@@ -191,41 +198,31 @@ fn next_tile_spirit(
                     // Choose the next tile to move to
                     // For this, it must have a path score less than the current one, or else it will stay put
                     // Also, we must check that there are not too many entities in this path
-                    let mut next = neighbours
-                        .clone()
-                        .filter(|(_, path)| {
-                            path.distance < tile_distance && path.count < MAX_SPIRITS_IN_TILE
-                        })
-                        .peekable();
-
                     // From the possible next tiles, it chooses the one with the lowest score
-                    if next.peek().is_none() {
-                        continue;
-                    }
-                    let min_score = next
-                        .peek()
-                        .iter()
+                    let mut rng = rand::thread_rng();
+                    let next = neighbours
+                        .filter(|(_, path)| {
+                            path.distance <= tile_distance && path.count < MAX_SPIRITS_IN_TILE
+                        })
+                        .map(|(pos, path)| {
+                            (
+                                *pos,
+                                PathTile {
+                                    distance: path.distance + rng.gen_range(0.0..0.1),
+                                    ..path.clone()
+                                },
+                            )
+                        })
                         .min_by(|(_, a), (_, b)| {
                             a.distance
                                 .partial_cmp(&b.distance)
                                 .unwrap_or(std::cmp::Ordering::Equal)
-                        })
-                        .unwrap()
-                        .1
-                        .distance;
-                    let next = next
-                        .filter(|(_, path)| path.distance == min_score)
-                        .map(|(pos, _)| pos)
-                        .collect::<Vec<_>>();
+                        });
+                    if next.is_none() {
+                        continue;
+                    }
 
-                    // If two tiles have the same score, it chooses one at random
-                    spirit.prev_tile = spirit.next_tile.unwrap_or(spirit.prev_tile);
-                    spirit.next_tile = next
-                        .iter()
-                        .choose(&mut rand::thread_rng())
-                        .copied()
-                        .cloned();
-                    spirit.curr_pos = spirit.next_pos;
+                    spirit.next_tile = Some(next.unwrap().0);
                     spirit.next_pos =
                         tile_to_pos(&spirit.next_tile.unwrap(), grid_size, map_type, map_trans);
 
@@ -242,46 +239,44 @@ fn next_tile_spirit(
                             }
                         }
                     }
-
-                    // If the spirit has no next tile, despawn
-                    if spirit.next_tile.is_none() {
-                        cmd.get_entity(spirit_entity).unwrap().despawn_recursive();
-                    }
                 }
             }
         }
     }
 }
 
-fn move_spirit(mut spirits: Query<(&mut Spirit, &mut Transform)>, time: Res<Time>) {
+fn move_spirit(mut spirits: Query<(&mut Spirit, &Transform)>) {
     for (mut spirit, trans) in spirits.iter_mut() {
         // Move towards next tile
-        let delta = if spirit.next_tile.is_some() {
-            spirit.next_pos - trans.translation.xy()
-        } else {
-            spirit.curr_pos - trans.translation.xy()
-        };
+        let delta = spirit.next_pos - trans.translation.xy();
         let dir = delta.normalize_or_zero();
         spirit.vel = spirit
             .vel
             .lerp(dir * SPIRIT_SPEED.min(delta.length_squared()), 0.1);
     }
-
-    for (spirit, mut trans) in spirits.iter_mut() {
-        trans.translation += spirit.vel.extend(0.) * time.delta_seconds();
-    }
 }
 
-fn spirit_collision(mut spirits: Query<(&mut Spirit, &mut Transform)>) {
-    // TODO: Bouncy soft collisions that stick to the path
-    // Right now they can clear gaps and don't stick to the path
+fn spirit_collision(mut spirits: Query<(&mut Spirit, &Transform)>) {
+    // TODO: Optimize this
     let mut iter = spirits.iter_combinations_mut();
     while let Some([(mut sa, ta), (mut sb, tb)]) = iter.fetch_next() {
         let delta = ta.translation.xy() - tb.translation.xy();
-        if delta.length() < SPIRIT_SIZE {
+        let dist = delta.length();
+        if dist < SPIRIT_SIZE {
             let dir = delta.normalize_or_zero();
-            sa.vel = sa.vel.lerp(dir * SPIRIT_SPEED * 2., 0.1);
-            sb.vel = sb.vel.lerp(-dir * SPIRIT_SPEED * 2., 0.1);
+            sa.vel = sa.vel.lerp(dir * SPIRIT_SPEED, 3. / dist.max(3.));
+            sb.vel = sb.vel.lerp(-dir * SPIRIT_SPEED, 3. / dist.max(3.));
         }
+    }
+}
+
+fn integrate(mut spirits: Query<(&Spirit, &mut Transform)>, time: Res<Time>) {
+    for (spirit, mut trans) in spirits.iter_mut() {
+        // Ondulating motion
+        let offset = (time.elapsed_seconds() * 1.5).sin();
+        let cross = spirit.vel.perp();
+
+        // Update position
+        trans.translation += (spirit.vel + cross * offset * 0.1).extend(0.) * time.delta_seconds();
     }
 }

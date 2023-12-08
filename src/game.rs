@@ -6,12 +6,22 @@ pub struct CharonPlugin;
 
 impl Plugin for CharonPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            OnEnter(GameState::Play),
-            (init_game.run_if(run_once()), resume_game),
-        )
-        .add_systems(OnExit(GameState::Play), pause_game);
+        app.insert_resource(GameScore::default())
+            .add_systems(
+                OnEnter(GameState::Play),
+                (init_game.run_if(run_once()), resume_game),
+            )
+            .add_systems(OnExit(GameState::Play), pause_game);
     }
+}
+
+// ·········
+// Resources
+// ·········
+
+#[derive(Resource, Default)]
+pub struct GameScore {
+    pub score: u32,
 }
 
 // ··········
