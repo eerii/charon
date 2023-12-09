@@ -71,7 +71,7 @@ impl Default for StartTile {
     fn default() -> Self {
         Self {
             completed_once: false,
-            spawn_timer: Timer::from_seconds(1., TimerMode::Repeating),
+            spawn_timer: Timer::from_seconds(0.5, TimerMode::Repeating),
         }
     }
 }
@@ -137,21 +137,9 @@ fn init_tilemap(mut cmd: Commands, tile_assets: Res<TilemapAssets>) {
     cmd.entity(storage.get(&TilePos { x: 0, y: 7 }).unwrap())
         .insert((StartTile::default(), PathTile::default()));
     cmd.entity(storage.get(&TilePos { x: 14, y: 7 }).unwrap())
-        .insert((
-            EndTile,
-            PathTile {
-                distance: HashMap::from([(TilePos { x: 14, y: 7 }, 0.)]),
-                ..default()
-            },
-        ));
-    /*cmd.entity(storage.get(&TilePos { x: 14, y: 3 }).unwrap())
-    .insert((
-        EndTile,
-        PathTile {
-            distance: HashMap::from([(TilePos { x: 14, y: 3 }, 0.)]),
-            ..default()
-        },
-    ));*/
+        .insert((EndTile, PathTile::default()));
+    cmd.entity(storage.get(&TilePos { x: 14, y: 3 }).unwrap())
+        .insert((EndTile, PathTile::default()));
 
     // Create tilemap
     let map_type = TilemapType::default();
@@ -275,7 +263,13 @@ fn highlight_tile(
         Option<&StartTile>,
         Option<&EndTile>,
     )>,
+    end_tiles: Query<(&TilePos, With<EndTile>)>,
 ) {
+    let mut ends = Vec::new();
+    for (pos, _) in end_tiles.iter() {
+        ends.push(*pos);
+    }
+
     for (mut tex, mut color, mut flip, selected, path, start, end) in tiles.iter_mut() {
         *color = TileColor::default();
         if selected.is_some() {
@@ -296,18 +290,22 @@ fn highlight_tile(
             *flip = flip_from_rotation(path.unwrap().rot);
 
             let dist = &path.unwrap().distance;
-            if dist.is_empty() {
-                continue;
-            }
-            let min_dist = dist
-                .values()
-                .min_by(|a, b| a.partial_cmp(b).unwrap())
-                .unwrap();
-            *color = if *min_dist < std::f32::INFINITY {
+            let dist_a = if let Some(d) = dist.get(&ends[0]) {
+                *d
+            } else {
+                std::f32::INFINITY
+            };
+            let dist_b = if let Some(d) = dist.get(&ends[1]) {
+                *d
+            } else {
+                std::f32::INFINITY
+            };
+
+            *color = if dist_a < std::f32::INFINITY || dist_b < std::f32::INFINITY {
                 TileColor(Color::rgb(
-                    min_dist / 25.,
-                    1. - min_dist / 25.,
-                    (min_dist - 20.) / 50.,
+                    dist_a / 25.,
+                    1. - (dist_a + dist_b) / 50.,
+                    dist_b / 25.,
                 ))
             } else {
                 TileColor::default()
@@ -324,19 +322,29 @@ fn pathfinding(
     end: Query<&TilePos, With<EndTile>>,
     mut paths: Query<&mut PathTile>,
 ) {
+    // Clear all path distances
+    for mut path in paths.iter_mut() {
+        path.distance.clear();
+    }
+
     if let Ok((size, storage)) = tilemap.get_single() {
         for end_pos in end.iter() {
             let mut open = BinaryHeap::new();
             let mut distances = HashMap::new();
 
+            // Add the end position to the queue
+            distances.insert(*end_pos, 0.);
             open.push(PathfindingNode {
                 pos: *end_pos,
                 distance: 0.,
             });
-            distances.insert(*end_pos, 0.);
+            if let Some(entity) = storage.get(end_pos) {
+                if let Ok(mut path) = paths.get_mut(entity) {
+                    path.distance.insert(*end_pos, 0.);
+                }
+            }
 
-            // TODO: INITIALIZE ALL DISTANCES TO MAX
-
+            // Start iterating through the queue
             while let Some(PathfindingNode { pos, distance }) = open.pop() {
                 // Get the neighbouring tiles
                 let neighbours = get_neighbours(&pos, size);
@@ -346,13 +354,13 @@ fn pathfinding(
                         if let Ok(mut path) = paths.get_mut(entity) {
                             // Djikstra's algorithm to find the shortest path from each tile
                             let dist = distance + 1.;
-                            if dist < *distances.get(&neighbour).unwrap_or(&f32::INFINITY) {
+                            if dist < *distances.get(&neighbour).unwrap_or(&std::f32::INFINITY) {
                                 distances.insert(neighbour, dist);
                                 open.push(PathfindingNode {
                                     pos: neighbour,
                                     distance: dist,
                                 });
-                                path.distance.insert(*end_pos, dist * 2.);
+                                path.distance.insert(*end_pos, dist);
                             }
                         }
                     }

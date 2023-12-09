@@ -9,12 +9,11 @@ use crate::{
     GameState,
 };
 
-const SPIRIT_SPEED: f32 = 150.;
-const SPIRIT_SIZE: f32 = 40.;
-const MAX_SPIRITS_IN_TILE: u32 = 2;
-
-const FUN_A: f32 = 0.75;
-const FUN_B: f32 = 0.01;
+const SPIRIT_SPEED: f32 = 200.;
+const SPIRIT_SIZE: f32 = 32.;
+const MAX_SPIRITS_IN_TILE: u32 = 3;
+const MAX_DISTANCE: f32 = std::f32::MAX;
+const FUN_A: f32 = 10.;
 
 // ······
 // Plugin
@@ -48,6 +47,7 @@ pub struct Spirit {
     curr_tile: TilePos,
     next_tile: Option<TilePos>,
     next_pos: Vec2,
+    selected_end: Option<TilePos>,
     vel: Vec2,
 }
 
@@ -58,6 +58,7 @@ impl Spirit {
             curr_tile,
             next_tile: None,
             next_pos: curr_pos,
+            selected_end: None,
             vel: Vec2::ZERO,
         }
     }
@@ -72,7 +73,7 @@ fn spawn_spirit(
     time: Res<Time>,
     assets: Res<GameAssets>,
     mut start: Query<(&TilePos, &mut StartTile, &mut PathTile)>,
-    spirits: Query<&Transform, With<Spirit>>,
+    mut spirits: Query<(&Transform, &mut Spirit)>,
     tilemap: Query<(&TilemapGridSize, &TilemapType, &Transform)>,
 ) {
     for (start_pos, mut start_tile, mut start_path) in start.iter_mut() {
@@ -89,8 +90,9 @@ fn spawn_spirit(
                 // If there is already another entity there, don't spawn
                 if start_path.count >= 1 {
                     // Check all spirits
-                    for spirit in spirits.iter() {
-                        if (spirit.translation.xy() - pos).length() < SPIRIT_SIZE {
+                    for (trans, mut spirit) in spirits.iter_mut() {
+                        if (trans.translation.xy() - pos).length() < SPIRIT_SIZE {
+                            spirit.prev_tile = None;
                             return;
                         }
                     }
@@ -102,7 +104,7 @@ fn spawn_spirit(
                     SpriteBundle {
                         texture: assets.bevy_icon.clone(),
                         transform: Transform::from_translation(pos.extend(1.))
-                            .with_scale(Vec3::splat(0.16)),
+                            .with_scale(Vec3::splat(0.15)),
                         ..default()
                     },
                     Spirit::new(*start_pos, pos),
@@ -117,6 +119,7 @@ fn next_tile_spirit(
     mut score: ResMut<GameScore>,
     mut spirit: Query<(Entity, &Transform, &mut Spirit)>,
     mut paths: Query<(&TilePos, &mut PathTile)>,
+    start: Query<Entity, With<StartTile>>,
     end: Query<Entity, With<EndTile>>,
     tilemap: Query<
         (
@@ -138,15 +141,19 @@ fn next_tile_spirit(
                 map_type,
                 map_trans,
             ) {
-                // If it is on the current tile, continue
                 if spirit.next_tile.is_some() && spirit.curr_tile == tile_pos {
-                    // Check if it is full
-                    if let Some(entity) = storage.get(&tile_pos) {
-                        if let Ok((_, path)) = paths.get(entity) {
-                            if path.count < MAX_SPIRITS_IN_TILE {
-                                continue;
-                            }
-                        }
+                    continue;
+                }
+
+                // Update counts
+                if let Some(entity) = storage.get(&tile_pos) {
+                    if let Ok((_, mut path)) = paths.get_mut(entity) {
+                        path.count += 1;
+                    }
+                }
+                if let Some(entity) = storage.get(&spirit.curr_tile) {
+                    if let Ok((_, mut path)) = paths.get_mut(entity) {
+                        path.count = path.count.saturating_sub(1);
                     }
                 }
                 spirit.curr_tile = tile_pos;
@@ -155,18 +162,22 @@ fn next_tile_spirit(
                 // Get the next tile
                 if spirit.next_tile.is_none() || spirit.next_tile.unwrap() == tile_pos {
                     spirit.next_tile = None;
-                    let mut tile_distance = std::f32::INFINITY;
+                    let mut tile_distance = &MAX_DISTANCE;
 
                     // If the spirit is on the end tile, despawn
                     if let Some(entity) = storage.get(&tile_pos) {
                         if end.get(entity).is_ok() {
                             cmd.get_entity(spirit_entity).unwrap().despawn_recursive();
                             score.score += 1;
+                            if let Ok((_, mut path)) = paths.get_mut(entity) {
+                                path.count = 0;
+                            }
                             continue;
                         }
                         if let Ok((_, path)) = paths.get(entity) {
-                            tile_distance = *path.distance.values().next().unwrap_or(&0.);
-                            // FIX:
+                            if let Some(end) = spirit.selected_end {
+                                tile_distance = path.distance.get(&end).unwrap_or(&MAX_DISTANCE);
+                            }
                         }
                     }
 
@@ -195,52 +206,53 @@ fn next_tile_spirit(
                         }
                     }
 
-                    /*let worst = if n > 1 {
-                        Some(
-                            neighbours
-                                .clone()
-                                .max_by(|(_, a), (_, b)| {
-                                    a.distance
-                                        .partial_cmp(&b.distance)
-                                        .unwrap_or(std::cmp::Ordering::Equal)
-                                })
-                                .unwrap(),
-                        )
-                    } else {
-                        None
-                    };*/
-
                     // Choose the next tile to move to
                     // For this, it must have a path score less than the current one, or else it will stay put
                     // Also, we must check that there are not too many entities in this path
                     // From the possible next tiles, it chooses the one with the lowest score
-                    let mut rng = rand::thread_rng();
                     let next = neighbours
                         .map(|(pos, path)| {
-                            let mut dist = *path.distance.values().next().unwrap_or(&0.); // FIX: // + path.count as f32 * 0.1;
-                            if let Some(prev) = spirit.prev_tile {
-                                if prev == *pos {
-                                    dist += 100.;
-                                }
-                            }
-                            /*if let Some((_, worst)) = worst {
-                                if path.distance == worst.distance && spirit.prev_tile.is_none() {
-                                    dist += 90.;
-                                }
-                            }*/
-                            if n > 1 {
-                                let r = rng.gen_range(
-                                    0.0..(MAX_SPIRITS_IN_TILE - path.count) as f32 * FUN_A + FUN_B,
-                                );
-                                dist -= r * r * r * r;
-                            }
+                            let min_dist = |a: &f32, b: &f32| {
+                                let r = rand::thread_rng().gen_range(-FUN_A / 2.0..FUN_A / 2.0);
+                                (a + r).partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+                            };
 
-                            (*pos, dist, path.count)
+                            // Get the end position
+                            // If there is no selected end, calculate the closest one
+                            let (end, dist) = if let Some(end) = spirit.selected_end {
+                                (
+                                    spirit.selected_end.as_ref().unwrap(),
+                                    path.distance.get(&end).unwrap_or(&MAX_DISTANCE),
+                                )
+                            } else {
+                                path.distance
+                                    .iter()
+                                    .min_by(|(_, a), (_, b)| min_dist(a, b))
+                                    .unwrap_or((&tile_pos, &MAX_DISTANCE))
+                            };
+
+                            // Add a random offset to the distance
+                            let r = rand::thread_rng().gen_range(0.0..0.1);
+
+                            (*pos, dist.clone() + r, Some(end.clone()), path.count)
                         })
-                        .filter(|(_, dist, count)| {
-                            *count < MAX_SPIRITS_IN_TILE && *dist < tile_distance
+                        .filter(|(pos, dist, _, count)| {
+                            let is_start = if let Some(entity) = storage.get(pos) {
+                                start.get(entity).is_ok()
+                            } else {
+                                false
+                            };
+                            let is_prev = if let Some(prev) = spirit.prev_tile {
+                                prev == *pos
+                            } else {
+                                false
+                            };
+                            *count < MAX_SPIRITS_IN_TILE
+                                && *dist < *tile_distance
+                                && !is_start
+                                && !is_prev
                         })
-                        .min_by(|(_, a, _), (_, b, _)| {
+                        .min_by(|(_, a, _, _), (_, b, _, _)| {
                             a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
                         });
 
@@ -253,20 +265,7 @@ fn next_tile_spirit(
                     spirit.next_tile = Some(next.unwrap().0);
                     spirit.next_pos =
                         tile_to_pos(&spirit.next_tile.unwrap(), grid_size, map_type, map_trans);
-
-                    // Update counts
-                    if let Some(entity) = storage.get(&spirit.curr_tile) {
-                        if let Ok((_, mut path)) = paths.get_mut(entity) {
-                            path.count = path.count.saturating_sub(1);
-                        }
-                    }
-                    if let Some(entity) = storage.get(&spirit.next_tile.unwrap()) {
-                        if end.get(entity).is_err() {
-                            if let Ok((_, mut path)) = paths.get_mut(entity) {
-                                path.count += 1;
-                            }
-                        }
-                    }
+                    spirit.selected_end = next.unwrap().2;
                 }
             }
         }
@@ -291,6 +290,9 @@ fn spirit_collision(mut spirits: Query<(&mut Spirit, &Transform)>) {
         let dist = delta.length();
         if dist < SPIRIT_SIZE {
             let dir = delta.normalize_or_zero();
+            // Add random offset
+            let r = rand::thread_rng().gen_range(-1.0..1.0);
+            let dir = (dir + Vec2::new(r, r)).normalize_or_zero();
             sa.vel = sa.vel.lerp(dir * SPIRIT_SPEED, 3. / dist.max(3.));
             sb.vel = sb.vel.lerp(-dir * SPIRIT_SPEED, 3. / dist.max(3.));
         }

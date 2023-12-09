@@ -19,7 +19,7 @@ a game for the bevy jam 4
 
 - [ ] mvp gameplay loop (sab mañ) 0.3
     - [x] game score
-    - [ ] multiple start/end points
+    - [x] multiple start/end points
     - [ ] spawn end points
     - [ ] lose timer and visual feedback
 
