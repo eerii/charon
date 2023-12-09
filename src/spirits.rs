@@ -24,7 +24,7 @@ pub struct SpiritPlugin;
 
 impl Plugin for SpiritPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(SpawnTimer::default()).add_systems(
+        app.add_systems(
             Update,
             (
                 spawn_spirit,
@@ -35,19 +35,6 @@ impl Plugin for SpiritPlugin {
             )
                 .run_if(in_state(GameState::Play)),
         );
-    }
-}
-
-// ·········
-// Resources
-// ·········
-
-#[derive(Resource)]
-struct SpawnTimer(Timer);
-
-impl Default for SpawnTimer {
-    fn default() -> Self {
-        Self(Timer::from_seconds(0.5, TimerMode::Repeating))
     }
 }
 
@@ -82,16 +69,15 @@ impl Spirit {
 
 fn spawn_spirit(
     mut cmd: Commands,
-    mut timer: ResMut<SpawnTimer>,
     time: Res<Time>,
     assets: Res<GameAssets>,
-    mut start: Query<(&TilePos, &StartTile, &mut PathTile)>,
+    mut start: Query<(&TilePos, &mut StartTile, &mut PathTile)>,
     spirits: Query<&Transform, With<Spirit>>,
     tilemap: Query<(&TilemapGridSize, &TilemapType, &Transform)>,
 ) {
-    if timer.0.tick(time.delta()).just_finished() {
-        if let Ok((grid_size, map_type, trans)) = tilemap.get_single() {
-            if let Ok((start_pos, start_tile, mut start_path)) = start.get_single_mut() {
+    for (start_pos, mut start_tile, mut start_path) in start.iter_mut() {
+        if start_tile.spawn_timer.tick(time.delta()).just_finished() {
+            if let Ok((grid_size, map_type, trans)) = tilemap.get_single() {
                 // Don't spawn entities if the path is not complete
                 if !start_tile.completed_once {
                     return;
@@ -179,7 +165,8 @@ fn next_tile_spirit(
                             continue;
                         }
                         if let Ok((_, path)) = paths.get(entity) {
-                            tile_distance = path.distance;
+                            tile_distance = *path.distance.values().next().unwrap_or(&0.);
+                            // FIX:
                         }
                     }
 
@@ -208,7 +195,7 @@ fn next_tile_spirit(
                         }
                     }
 
-                    let worst = if n > 1 {
+                    /*let worst = if n > 1 {
                         Some(
                             neighbours
                                 .clone()
@@ -221,7 +208,7 @@ fn next_tile_spirit(
                         )
                     } else {
                         None
-                    };
+                    };*/
 
                     // Choose the next tile to move to
                     // For this, it must have a path score less than the current one, or else it will stay put
@@ -230,17 +217,17 @@ fn next_tile_spirit(
                     let mut rng = rand::thread_rng();
                     let next = neighbours
                         .map(|(pos, path)| {
-                            let mut dist = path.distance; // + path.count as f32 * 0.1;
-                            if let Some((_, worst)) = worst {
-                                if path.distance == worst.distance && spirit.prev_tile.is_none() {
-                                    dist += 90.;
-                                }
-                            }
+                            let mut dist = *path.distance.values().next().unwrap_or(&0.); // FIX: // + path.count as f32 * 0.1;
                             if let Some(prev) = spirit.prev_tile {
                                 if prev == *pos {
                                     dist += 100.;
                                 }
                             }
+                            /*if let Some((_, worst)) = worst {
+                                if path.distance == worst.distance && spirit.prev_tile.is_none() {
+                                    dist += 90.;
+                                }
+                            }*/
                             if n > 1 {
                                 let r = rng.gen_range(
                                     0.0..(MAX_SPIRITS_IN_TILE - path.count) as f32 * FUN_A + FUN_B,

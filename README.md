@@ -2,7 +2,8 @@
 
 a game for the bevy jam 4
 
-# todo
+<details>
+    <summary>todo</summary>
 
 - [x] base systems (finde) 0.1
     - [x] compile and test builds (web, local)
@@ -49,3 +50,5 @@ a game for the bevy jam 4
 
 - [ ] playtesting and bugfixing (lun)
     - [ ] review settings menu
+    - [ ] profiling and optimization
+</details>

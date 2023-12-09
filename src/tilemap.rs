@@ -61,9 +61,19 @@ pub struct TileChanged(u32);
 #[derive(Component)]
 pub struct SelectedTile;
 
-#[derive(Component, Default)]
+#[derive(Component)]
 pub struct StartTile {
     pub completed_once: bool,
+    pub spawn_timer: Timer,
+}
+
+impl Default for StartTile {
+    fn default() -> Self {
+        Self {
+            completed_once: false,
+            spawn_timer: Timer::from_seconds(1., TimerMode::Repeating),
+        }
+    }
 }
 
 #[derive(Component)]
@@ -81,7 +91,7 @@ pub enum PathShape {
 
 #[derive(Component, Clone)]
 pub struct PathTile {
-    pub distance: f32,
+    pub distance: HashMap<TilePos, f32>,
     pub count: u32,
     pub shape: PathShape,
     pub rot: u32,
@@ -90,7 +100,7 @@ pub struct PathTile {
 impl Default for PathTile {
     fn default() -> Self {
         Self {
-            distance: f32::INFINITY,
+            distance: HashMap::new(),
             count: 0,
             shape: PathShape::End,
             rot: 0,
@@ -121,17 +131,27 @@ fn init_tilemap(mut cmd: Commands, tile_assets: Res<TilemapAssets>) {
         }
     }
 
-    // Mark start and end tiles
+    // FIX: Remove start/end points from here and make it spawn
     cmd.entity(storage.get(&TilePos { x: 0, y: 3 }).unwrap())
+        .insert((StartTile::default(), PathTile::default()));
+    cmd.entity(storage.get(&TilePos { x: 0, y: 7 }).unwrap())
         .insert((StartTile::default(), PathTile::default()));
     cmd.entity(storage.get(&TilePos { x: 14, y: 7 }).unwrap())
         .insert((
             EndTile,
             PathTile {
-                distance: -std::f32::INFINITY,
+                distance: HashMap::from([(TilePos { x: 14, y: 7 }, 0.)]),
                 ..default()
             },
         ));
+    /*cmd.entity(storage.get(&TilePos { x: 14, y: 3 }).unwrap())
+    .insert((
+        EndTile,
+        PathTile {
+            distance: HashMap::from([(TilePos { x: 14, y: 3 }, 0.)]),
+            ..default()
+        },
+    ));*/
 
     // Create tilemap
     let map_type = TilemapType::default();
@@ -265,12 +285,6 @@ fn highlight_tile(
         } else if end.is_some() {
             *tex = TileTextureIndex(1);
         } else if path.is_some() {
-            let dist = path.unwrap().distance;
-            *color = if dist < std::f32::INFINITY {
-                TileColor(Color::rgb(dist / 25., 1. - dist / 25., (dist - 20.) / 50.))
-            } else {
-                TileColor::default()
-            };
             *tex = match path.unwrap().shape {
                 PathShape::None => TileTextureIndex(3),
                 PathShape::End => TileTextureIndex(4),
@@ -280,6 +294,24 @@ fn highlight_tile(
                 PathShape::Crossing => TileTextureIndex(8),
             };
             *flip = flip_from_rotation(path.unwrap().rot);
+
+            let dist = &path.unwrap().distance;
+            if dist.is_empty() {
+                continue;
+            }
+            let min_dist = dist
+                .values()
+                .min_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap();
+            *color = if *min_dist < std::f32::INFINITY {
+                TileColor(Color::rgb(
+                    min_dist / 25.,
+                    1. - min_dist / 25.,
+                    (min_dist - 20.) / 50.,
+                ))
+            } else {
+                TileColor::default()
+            };
         } else {
             *tex = TileTextureIndex(0);
         }
@@ -293,9 +325,7 @@ fn pathfinding(
     mut paths: Query<&mut PathTile>,
 ) {
     if let Ok((size, storage)) = tilemap.get_single() {
-        if let (Ok((start_pos, mut start_tile)), Ok(end_pos)) =
-            (start.get_single_mut(), end.get_single())
-        {
+        for end_pos in end.iter() {
             let mut open = BinaryHeap::new();
             let mut distances = HashMap::new();
 
@@ -304,6 +334,8 @@ fn pathfinding(
                 distance: 0.,
             });
             distances.insert(*end_pos, 0.);
+
+            // TODO: INITIALIZE ALL DISTANCES TO MAX
 
             while let Some(PathfindingNode { pos, distance }) = open.pop() {
                 // Get the neighbouring tiles
@@ -320,7 +352,7 @@ fn pathfinding(
                                     pos: neighbour,
                                     distance: dist,
                                 });
-                                path.distance = dist * 2.;
+                                path.distance.insert(*end_pos, dist * 2.);
                             }
                         }
                     }
@@ -328,35 +360,9 @@ fn pathfinding(
             }
 
             // Check if there is a path from the end to the start
-            if distances.contains_key(start_pos) {
-                start_tile.completed_once = true;
-
-                // Then do the algorithm in reverse to favour paths away from the start
-                open.push(PathfindingNode {
-                    pos: *start_pos,
-                    distance: 0.,
-                });
-                let mut distances = HashMap::new();
-                distances.insert(*start_pos, 0.);
-
-                while let Some(PathfindingNode { pos, distance }) = open.pop() {
-                    let neighbours = get_neighbours(&pos, size);
-
-                    for neighbour in neighbours {
-                        if let Some(entity) = storage.get(&neighbour) {
-                            if let Ok(mut path) = paths.get_mut(entity) {
-                                let dist = distance + 1.;
-                                if dist < *distances.get(&neighbour).unwrap_or(&f32::INFINITY) {
-                                    distances.insert(neighbour, dist);
-                                    open.push(PathfindingNode {
-                                        pos: neighbour,
-                                        distance: dist,
-                                    });
-                                    path.distance -= dist * 0.5;
-                                }
-                            }
-                        }
-                    }
+            for (start_pos, mut start_tile) in start.iter_mut() {
+                if distances.contains_key(start_pos) {
+                    start_tile.completed_once = true;
                 }
             }
         }
