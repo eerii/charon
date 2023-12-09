@@ -1,9 +1,11 @@
+#![allow(clippy::too_many_arguments)]
+
 use bevy::{prelude::*, render::view::RenderLayers};
 use bevy_ecs_tilemap::prelude::*;
 use rand::Rng;
 
 use crate::{
-    tilemap::{play_to_real_size, EndTile, LevelSize, PathTile, StartTile},
+    tilemap::{play_to_real_size, EndTile, LevelSize, PathTile, StartTile, TileChanged},
     GameState,
 };
 
@@ -70,6 +72,7 @@ fn spawn_start_end(
     mut cmd: Commands,
     score: Res<GameScore>,
     mut level_size: ResMut<LevelSize>,
+    mut tile_changed: ResMut<TileChanged>,
     tilemap: Query<&TileStorage>,
     starts: Query<&TilePos, With<StartTile>>,
     ends: Query<&TilePos, With<EndTile>>,
@@ -111,7 +114,7 @@ fn spawn_start_end(
         level_size.0.x += 2;
         level_size.0.y += 2;
     }
-    let (offset, size) = play_to_real_size(&*level_size);
+    let (offset, size) = play_to_real_size(&level_size);
 
     if let Ok(storage) = tilemap.get_single() {
         if is_start {
@@ -126,6 +129,7 @@ fn spawn_start_end(
             if let Some(pos) = pos {
                 cmd.entity(storage.get(&pos).unwrap())
                     .insert((StartTile::default(), PathTile::default()));
+                tile_changed.0 += 1;
             }
         }
 
@@ -141,6 +145,7 @@ fn spawn_start_end(
             if let Some(pos) = pos {
                 cmd.entity(storage.get(&pos).unwrap())
                     .insert((EndTile, PathTile::default()));
+                tile_changed.0 += 1;
             }
         }
     }

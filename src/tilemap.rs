@@ -52,7 +52,7 @@ impl Plugin for TilePlugin {
 // ·········
 
 #[derive(Resource)]
-pub struct TileChanged(u32);
+pub struct TileChanged(pub u32);
 
 #[derive(Resource)]
 pub struct LevelSize(pub TilemapSize);
@@ -169,7 +169,7 @@ fn select_tile(
 
     for (map_size, grid_size, map_type, tile_storage, trans) in tilemap.iter() {
         if let Some(tile_pos) = pos_to_tile(&mouse.0, map_size, grid_size, map_type, trans) {
-            if !tile_in_level(&tile_pos, &*level_size) {
+            if !tile_in_level(&tile_pos, &level_size) {
                 return;
             }
             if let Some(tile_entity) = tile_storage.get(&tile_pos) {
@@ -273,7 +273,7 @@ fn highlight_tile(
 
     for (mut tex, mut color, mut flip, pos, selected, path, start, end) in tiles.iter_mut() {
         *color = TileColor::default();
-        if !tile_in_level(pos, &*level_size) {
+        if !tile_in_level(pos, &level_size) {
             *color = TileColor(Color::rgb(0., 0., 0.1));
         } else if selected.is_some() {
             *tex = TileTextureIndex(3);
@@ -301,12 +301,12 @@ fn pathfinding(
     tilemap: Query<(&TilemapSize, &TileStorage)>,
     mut start: Query<(&TilePos, &mut StartTile)>,
     end: Query<&TilePos, With<EndTile>>,
-    mut paths: Query<&mut PathTile>,
+    mut paths: Query<(&TilePos, &mut PathTile)>,
 ) {
-    // Clear all path distances
-    for mut path in paths.iter_mut() {
+    // Clear all paths
+    /*for (_, mut path) in paths.iter_mut() {
         path.distance.clear();
-    }
+    }*/
 
     if let Ok((size, storage)) = tilemap.get_single() {
         for end_pos in end.iter() {
@@ -320,19 +320,26 @@ fn pathfinding(
                 distance: 0.,
             });
             if let Some(entity) = storage.get(end_pos) {
-                if let Ok(mut path) = paths.get_mut(entity) {
+                if let Ok((_, mut path)) = paths.get_mut(entity) {
                     path.distance.insert(*end_pos, 0.);
                 }
             }
 
             // Start iterating through the queue
             while let Some(PathfindingNode { pos, distance }) = open.pop() {
+                // If the path is a start, cut this branch
+                if let Some(entity) = storage.get(&pos) {
+                    if start.get_mut(entity).is_ok() {
+                        continue;
+                    }
+                }
+
                 // Get the neighbouring tiles
                 let neighbours = get_neighbours(&pos, size);
 
                 for neighbour in neighbours {
                     if let Some(entity) = storage.get(&neighbour) {
-                        if let Ok(mut path) = paths.get_mut(entity) {
+                        if let Ok((_, mut path)) = paths.get_mut(entity) {
                             // Djikstra's algorithm to find the shortest path from each tile
                             let dist = distance + 1.;
                             if dist < *distances.get(&neighbour).unwrap_or(&std::f32::INFINITY) {
@@ -348,10 +355,23 @@ fn pathfinding(
                 }
             }
 
+            // Set the end distance to 0
+            if let Some(entity) = storage.get(end_pos) {
+                if let Ok((_, mut path)) = paths.get_mut(entity) {
+                    path.distance.insert(*end_pos, 0.);
+                }
+            }
+
             // Check if there is a path from the end to the start
             for (start_pos, mut start_tile) in start.iter_mut() {
                 if distances.contains_key(start_pos) {
                     start_tile.completed_once = true;
+                    // Set begin distance to MAX
+                    if let Some(entity) = storage.get(start_pos) {
+                        if let Ok((_, mut path)) = paths.get_mut(entity) {
+                            path.distance.insert(*start_pos, std::f32::INFINITY);
+                        }
+                    }
                 }
             }
         }
