@@ -17,7 +17,7 @@ use crate::{
     GameState,
 };
 
-const MAP_SIZE: TilemapSize = TilemapSize { x: 15, y: 10 };
+const MAP_SIZE: TilemapSize = TilemapSize { x: 20, y: 15 };
 const TILE_SIZE: TilemapTileSize = TilemapTileSize { x: 64., y: 64. };
 const GRID_SIZE: TilemapGridSize = TilemapGridSize { x: 72., y: 72. };
 
@@ -54,6 +54,9 @@ impl Plugin for TilePlugin {
 #[derive(Resource)]
 pub struct TileChanged(u32);
 
+#[derive(Resource)]
+pub struct LevelSize(pub TilemapSize);
+
 // ··········
 // Components
 // ··········
@@ -71,7 +74,7 @@ impl Default for StartTile {
     fn default() -> Self {
         Self {
             completed_once: false,
-            spawn_timer: Timer::from_seconds(0.5, TimerMode::Repeating),
+            spawn_timer: Timer::from_seconds(1.0, TimerMode::Repeating),
         }
     }
 }
@@ -131,16 +134,6 @@ fn init_tilemap(mut cmd: Commands, tile_assets: Res<TilemapAssets>) {
         }
     }
 
-    // FIX: Remove start/end points from here and make it spawn
-    cmd.entity(storage.get(&TilePos { x: 0, y: 3 }).unwrap())
-        .insert((StartTile::default(), PathTile::default()));
-    cmd.entity(storage.get(&TilePos { x: 0, y: 7 }).unwrap())
-        .insert((StartTile::default(), PathTile::default()));
-    cmd.entity(storage.get(&TilePos { x: 14, y: 7 }).unwrap())
-        .insert((EndTile, PathTile::default()));
-    cmd.entity(storage.get(&TilePos { x: 14, y: 3 }).unwrap())
-        .insert((EndTile, PathTile::default()));
-
     // Create tilemap
     let map_type = TilemapType::default();
     cmd.entity(tilemap).insert(TilemapBundle {
@@ -153,11 +146,14 @@ fn init_tilemap(mut cmd: Commands, tile_assets: Res<TilemapAssets>) {
         transform: get_tilemap_center_transform(&MAP_SIZE, &GRID_SIZE, &map_type, 0.0),
         ..default()
     });
+
+    cmd.insert_resource(LevelSize(TilemapSize { x: 8, y: 3 }));
 }
 
 fn select_tile(
     mut cmd: Commands,
     mouse: Res<MousePosition>,
+    level_size: Res<LevelSize>,
     tilemap: Query<(
         &TilemapSize,
         &TilemapGridSize,
@@ -173,6 +169,9 @@ fn select_tile(
 
     for (map_size, grid_size, map_type, tile_storage, trans) in tilemap.iter() {
         if let Some(tile_pos) = pos_to_tile(&mouse.0, map_size, grid_size, map_type, trans) {
+            if !tile_in_level(&tile_pos, &*level_size) {
+                return;
+            }
             if let Some(tile_entity) = tile_storage.get(&tile_pos) {
                 cmd.entity(tile_entity).insert(SelectedTile);
             }
@@ -258,11 +257,13 @@ fn highlight_tile(
         &mut TileTextureIndex,
         &mut TileColor,
         &mut TileFlip,
+        &TilePos,
         Option<&SelectedTile>,
         Option<&PathTile>,
         Option<&StartTile>,
         Option<&EndTile>,
     )>,
+    level_size: Res<LevelSize>,
     end_tiles: Query<(&TilePos, With<EndTile>)>,
 ) {
     let mut ends = Vec::new();
@@ -270,9 +271,11 @@ fn highlight_tile(
         ends.push(*pos);
     }
 
-    for (mut tex, mut color, mut flip, selected, path, start, end) in tiles.iter_mut() {
+    for (mut tex, mut color, mut flip, pos, selected, path, start, end) in tiles.iter_mut() {
         *color = TileColor::default();
-        if selected.is_some() {
+        if !tile_in_level(pos, &*level_size) {
+            *color = TileColor(Color::rgb(0., 0., 0.1));
+        } else if selected.is_some() {
             *tex = TileTextureIndex(3);
         } else if start.is_some() {
             *tex = TileTextureIndex(2);
@@ -288,28 +291,6 @@ fn highlight_tile(
                 PathShape::Crossing => TileTextureIndex(8),
             };
             *flip = flip_from_rotation(path.unwrap().rot);
-
-            let dist = &path.unwrap().distance;
-            let dist_a = if let Some(d) = dist.get(&ends[0]) {
-                *d
-            } else {
-                std::f32::INFINITY
-            };
-            let dist_b = if let Some(d) = dist.get(&ends[1]) {
-                *d
-            } else {
-                std::f32::INFINITY
-            };
-
-            *color = if dist_a < std::f32::INFINITY || dist_b < std::f32::INFINITY {
-                TileColor(Color::rgb(
-                    dist_a / 25.,
-                    1. - (dist_a + dist_b) / 50.,
-                    dist_b / 25.,
-                ))
-            } else {
-                TileColor::default()
-            };
         } else {
             *tex = TileTextureIndex(0);
         }
@@ -574,4 +555,22 @@ pub fn flip_from_rotation(rot: u32) -> TileFlip {
             d: false,
         },
     }
+}
+
+pub fn play_to_real_size(play_size: &LevelSize) -> (TilemapSize, TilemapSize) {
+    (
+        TilemapSize {
+            x: (MAP_SIZE.x - play_size.0.x) / 2,
+            y: (MAP_SIZE.y - play_size.0.y) / 2,
+        },
+        play_size.0,
+    )
+}
+
+pub fn tile_in_level(pos: &TilePos, level_size: &LevelSize) -> bool {
+    let (offset, _) = play_to_real_size(level_size);
+    pos.x >= offset.x
+        && pos.x < offset.x + level_size.0.x
+        && pos.y >= offset.y
+        && pos.y < offset.y + level_size.0.y
 }

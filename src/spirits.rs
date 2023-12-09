@@ -258,6 +258,7 @@ fn next_tile_spirit(
 
                     if next.is_none() {
                         spirit.prev_tile = None;
+                        spirit.selected_end = None;
                         continue;
                     }
 
