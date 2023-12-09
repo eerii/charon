@@ -298,7 +298,6 @@ fn move_spirit(mut spirits: Query<(&mut Spirit, &Transform)>) {
 }
 
 fn spirit_collision(mut spirits: Query<(&mut Spirit, &Transform)>) {
-    // TODO: Optimize this
     let mut iter = spirits.iter_combinations_mut();
     while let Some([(mut sa, ta), (mut sb, tb)]) = iter.fetch_next() {
         let delta = ta.translation.xy() - tb.translation.xy();

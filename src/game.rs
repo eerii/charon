@@ -2,11 +2,6 @@ use bevy::{prelude::*, render::view::RenderLayers};
 
 use crate::GameState;
 
-// TODO: End screen (win/lose)
-// TODO: Dialogues
-// TODO: Add sprites
-// TODO: Add animations
-
 pub struct CharonPlugin;
 
 impl Plugin for CharonPlugin {

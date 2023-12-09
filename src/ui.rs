@@ -8,9 +8,6 @@ const MENU_WIDTH: Val = Val::Px(300.);
 const MENU_ITEM_HEIGHT: Val = Val::Px(40.);
 const MENU_ITEM_GAP: Val = Val::Px(10.);
 
-// TODO: Inventory overlay ui
-// TODO: Tweening and animation (Look into https://github.com/djeedai/bevy_tweening)
-
 // ······
 // Plugin
 // ······

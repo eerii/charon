@@ -17,9 +17,6 @@ use crate::{
     GameState,
 };
 
-// TODO: Multiple start/end points
-// TODO: Bridges
-
 const MAP_SIZE: TilemapSize = TilemapSize { x: 15, y: 10 };
 const TILE_SIZE: TilemapTileSize = TilemapTileSize { x: 64., y: 64. };
 const GRID_SIZE: TilemapGridSize = TilemapGridSize { x: 72., y: 72. };
@@ -190,8 +187,6 @@ fn click_tile(
     mut changed: ResMut<TileChanged>,
     mut prev: Local<Option<(bool, Option<TilePos>, Option<TilePos>)>>,
 ) {
-    // TODO: Make sure that the paths are adjacent, maybe change the way they are drawn
-
     let select = keybinds.interact.iter().any(|bind| {
         if prev.is_none() {
             input.just_pressed(*bind)

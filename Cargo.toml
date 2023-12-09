@@ -1,6 +1,6 @@
 [package]
 name = "charon"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "a game for the bevy jam 4"
 exclude = ["build", "assets", ".data"]
