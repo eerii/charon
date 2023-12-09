@@ -90,8 +90,8 @@ mod only_in_debug {
                         )
                         .with_style(Style {
                             position_type: PositionType::Absolute,
-                            left: Val::Px(5.0),
-                            top: Val::Px(5.0),
+                            right: Val::Px(5.0),
+                            bottom: Val::Px(5.0),
                             ..default()
                         }),
                         FpsText,

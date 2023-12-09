@@ -2,6 +2,7 @@ mod audio;
 mod config;
 mod debug;
 mod game;
+mod hud;
 mod input;
 mod load;
 mod menu;
@@ -29,6 +30,7 @@ impl Plugin for GamePlugin {
             load::LoadPlugin,
             ui::UIPlugin,
             menu::MenuPlugin,
+            hud::HudPlugin,
             config::ConfigPlugin,
             input::InputPlugin,
             audio::AudioPlugin,

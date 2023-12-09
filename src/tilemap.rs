@@ -17,8 +17,8 @@ use crate::{
     GameState,
 };
 
-// TODO: Automatically select path sprite (corner, straight, intersection)
 // TODO: Multiple start/end points
+// TODO: Bridges
 
 const MAP_SIZE: TilemapSize = TilemapSize { x: 15, y: 10 };
 const TILE_SIZE: TilemapTileSize = TilemapTileSize { x: 64., y: 64. };
@@ -131,7 +131,7 @@ fn init_tilemap(mut cmd: Commands, tile_assets: Res<TilemapAssets>) {
         .insert((
             EndTile,
             PathTile {
-                distance: 0.,
+                distance: -std::f32::INFINITY,
                 ..default()
             },
         ));
@@ -310,7 +310,6 @@ fn pathfinding(
             });
             distances.insert(*end_pos, 0.);
 
-            // Iterate the pathfinding queue
             while let Some(PathfindingNode { pos, distance }) = open.pop() {
                 // Get the neighbouring tiles
                 let neighbours = get_neighbours(&pos, size);
@@ -326,7 +325,7 @@ fn pathfinding(
                                     pos: neighbour,
                                     distance: dist,
                                 });
-                                path.distance = dist;
+                                path.distance = dist * 2.;
                             }
                         }
                     }
@@ -336,6 +335,34 @@ fn pathfinding(
             // Check if there is a path from the end to the start
             if distances.contains_key(start_pos) {
                 start_tile.completed_once = true;
+
+                // Then do the algorithm in reverse to favour paths away from the start
+                open.push(PathfindingNode {
+                    pos: *start_pos,
+                    distance: 0.,
+                });
+                let mut distances = HashMap::new();
+                distances.insert(*start_pos, 0.);
+
+                while let Some(PathfindingNode { pos, distance }) = open.pop() {
+                    let neighbours = get_neighbours(&pos, size);
+
+                    for neighbour in neighbours {
+                        if let Some(entity) = storage.get(&neighbour) {
+                            if let Ok(mut path) = paths.get_mut(entity) {
+                                let dist = distance + 1.;
+                                if dist < *distances.get(&neighbour).unwrap_or(&f32::INFINITY) {
+                                    distances.insert(neighbour, dist);
+                                    open.push(PathfindingNode {
+                                        pos: neighbour,
+                                        distance: dist,
+                                    });
+                                    path.distance -= dist * 0.5;
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

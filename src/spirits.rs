@@ -13,6 +13,9 @@ const SPIRIT_SPEED: f32 = 150.;
 const SPIRIT_SIZE: f32 = 40.;
 const MAX_SPIRITS_IN_TILE: u32 = 2;
 
+const FUN_A: f32 = 0.75;
+const FUN_B: f32 = 0.01;
+
 // ······
 // Plugin
 // ······
@@ -54,6 +57,7 @@ impl Default for SpawnTimer {
 
 #[derive(Component)]
 pub struct Spirit {
+    prev_tile: Option<TilePos>,
     curr_tile: TilePos,
     next_tile: Option<TilePos>,
     next_pos: Vec2,
@@ -63,6 +67,7 @@ pub struct Spirit {
 impl Spirit {
     pub fn new(curr_tile: TilePos, curr_pos: Vec2) -> Self {
         Self {
+            prev_tile: Some(curr_tile),
             curr_tile,
             next_tile: None,
             next_pos: curr_pos,
@@ -149,7 +154,14 @@ fn next_tile_spirit(
             ) {
                 // If it is on the current tile, continue
                 if spirit.next_tile.is_some() && spirit.curr_tile == tile_pos {
-                    continue;
+                    // Check if it is full
+                    if let Some(entity) = storage.get(&tile_pos) {
+                        if let Ok((_, path)) = paths.get(entity) {
+                            if path.count < MAX_SPIRITS_IN_TILE {
+                                continue;
+                            }
+                        }
+                    }
                 }
                 spirit.curr_tile = tile_pos;
 
@@ -173,7 +185,7 @@ fn next_tile_spirit(
 
                     // Get the possible next tiles (they must be paths)
                     let neighbour_list = get_neighbours(&tile_pos, map_size);
-                    let mut neighbours = neighbour_list
+                    let neighbours = neighbour_list
                         .iter()
                         .filter_map(|pos| storage.get(pos))
                         .filter_map(|entity| {
@@ -182,12 +194,13 @@ fn next_tile_spirit(
                             } else {
                                 None
                             }
-                        })
-                        .peekable();
+                        });
+
+                    let n = neighbours.clone().count();
 
                     // If there are no surrounding paths, check if the spirit is on a path
                     // If it is not, despawn
-                    if neighbours.peek().is_none() {
+                    if n == 0 {
                         if let Some(entity) = storage.get(&tile_pos) {
                             if paths.get(entity).is_err() {
                                 cmd.get_entity(spirit_entity).unwrap().despawn_recursive();
@@ -195,33 +208,61 @@ fn next_tile_spirit(
                         }
                     }
 
+                    let worst = if n > 1 {
+                        Some(
+                            neighbours
+                                .clone()
+                                .max_by(|(_, a), (_, b)| {
+                                    a.distance
+                                        .partial_cmp(&b.distance)
+                                        .unwrap_or(std::cmp::Ordering::Equal)
+                                })
+                                .unwrap(),
+                        )
+                    } else {
+                        None
+                    };
+
                     // Choose the next tile to move to
                     // For this, it must have a path score less than the current one, or else it will stay put
                     // Also, we must check that there are not too many entities in this path
                     // From the possible next tiles, it chooses the one with the lowest score
                     let mut rng = rand::thread_rng();
                     let next = neighbours
-                        .filter(|(_, path)| {
-                            path.distance <= tile_distance && path.count < MAX_SPIRITS_IN_TILE
-                        })
                         .map(|(pos, path)| {
-                            (
-                                *pos,
-                                PathTile {
-                                    distance: path.distance + rng.gen_range(0.0..0.1),
-                                    ..path.clone()
-                                },
-                            )
+                            let mut dist = path.distance; // + path.count as f32 * 0.1;
+                            if let Some((_, worst)) = worst {
+                                if path.distance == worst.distance && spirit.prev_tile.is_none() {
+                                    dist += 90.;
+                                }
+                            }
+                            if let Some(prev) = spirit.prev_tile {
+                                if prev == *pos {
+                                    dist += 100.;
+                                }
+                            }
+                            if n > 1 {
+                                let r = rng.gen_range(
+                                    0.0..(MAX_SPIRITS_IN_TILE - path.count) as f32 * FUN_A + FUN_B,
+                                );
+                                dist -= r * r * r * r;
+                            }
+
+                            (*pos, dist, path.count)
                         })
-                        .min_by(|(_, a), (_, b)| {
-                            a.distance
-                                .partial_cmp(&b.distance)
-                                .unwrap_or(std::cmp::Ordering::Equal)
+                        .filter(|(_, dist, count)| {
+                            *count < MAX_SPIRITS_IN_TILE && *dist < tile_distance
+                        })
+                        .min_by(|(_, a, _), (_, b, _)| {
+                            a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
                         });
+
                     if next.is_none() {
+                        spirit.prev_tile = None;
                         continue;
                     }
 
+                    spirit.prev_tile = Some(spirit.curr_tile);
                     spirit.next_tile = Some(next.unwrap().0);
                     spirit.next_pos =
                         tile_to_pos(&spirit.next_tile.unwrap(), grid_size, map_type, map_trans);
@@ -273,10 +314,10 @@ fn spirit_collision(mut spirits: Query<(&mut Spirit, &Transform)>) {
 fn integrate(mut spirits: Query<(&Spirit, &mut Transform)>, time: Res<Time>) {
     for (spirit, mut trans) in spirits.iter_mut() {
         // Ondulating motion
-        let offset = (time.elapsed_seconds() * 1.5).sin();
+        let offset = (time.elapsed_seconds() * 1.5).sin() * 0.05;
         let cross = spirit.vel.perp();
 
         // Update position
-        trans.translation += (spirit.vel + cross * offset * 0.1).extend(0.) * time.delta_seconds();
+        trans.translation += (spirit.vel + cross * offset).extend(0.) * time.delta_seconds();
     }
 }
