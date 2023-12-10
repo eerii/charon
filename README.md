@@ -17,36 +17,38 @@ a game for the bevy jam 4
     - [x] bouncy collisions
     - [x] autotile shapes
 
-- [ ] mvp gameplay loop (sab mañ) 0.3
+- [x] mvp gameplay loop (sab mañ) 0.3
     - [x] game score
     - [x] multiple start/end points
     - [x] spawn end points
-    - [ ] lose timer and visual feedback
+    - [x] lose timer and visual feedback
 
-- [ ] important tweaks (sab tar)
-    - [ ] other river types
-    - [ ] zoom out screen
+- [ ] important tweaks (dom mañ)
     - [ ] add sprites
-    - [ ] end screen (win/lose)
+    - [ ] zoom out screen
     - [ ] limited path tiles
+    - [ ] end screen (win/lose)
 
-- [ ] new features (dom mañ)
+- [ ] new features (dom tar)
+    - [ ] other river types
     - [ ] other spirit behaviour
     - [ ] bridges
     - [ ] overlay ui (bridge selection, n paths...)
     - [ ] better path drawing 
 
-- [ ] would be nice (???)
-    - [x] alternate paths
-    - [ ] animations
-    - [ ] spirit dialogues
-    - [ ] sound and music
-    - [ ] tweening and animation
-
 - [ ] presentation (dom tar)
     - [ ] write readme
     - [ ] write jam page
     - [ ] presubmit game
+
+- [ ] would be nice (???)
+    - [ ] alternate paths
+    - [ ] improve lose timer
+    - [ ] animations
+    - [ ] spirit dialogues
+    - [ ] sound and music
+    - [ ] tweening and animation
+    - [ ] tiles only despawn after no entities are in them
 
 - [ ] playtesting and bugfixing (lun)
     - [ ] review settings menu

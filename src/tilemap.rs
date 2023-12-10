@@ -14,7 +14,7 @@ use crate::{
     config::Keybinds,
     input::{Bind, MousePosition},
     load::TilemapAssets,
-    GameState,
+    GameState, spirits::INITIAL_SPAWN_TIME,
 };
 
 const MAP_SIZE: TilemapSize = TilemapSize { x: 20, y: 15 };
@@ -68,13 +68,17 @@ pub struct SelectedTile;
 pub struct StartTile {
     pub completed_once: bool,
     pub spawn_timer: Timer,
+    pub lose_counter: u32,
+    pub lose_text: Option<Entity>,
 }
 
 impl Default for StartTile {
     fn default() -> Self {
         Self {
             completed_once: false,
-            spawn_timer: Timer::from_seconds(1.0, TimerMode::Repeating),
+            spawn_timer: Timer::from_seconds(INITIAL_SPAWN_TIME, TimerMode::Repeating),
+            lose_counter: 0,
+            lose_text: None,
         }
     }
 }

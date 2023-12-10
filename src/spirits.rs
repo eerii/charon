@@ -14,6 +14,10 @@ use crate::{
 const SPIRIT_SPEED: f32 = 200.;
 const SPIRIT_SIZE: f32 = 32.;
 const MAX_SPIRITS_IN_TILE: u32 = 3;
+
+pub const INITIAL_SPAWN_TIME: f32 = 1.0;
+const LOSE_COUNT: u32 = 40;
+
 const FUN_A: f32 = 10.;
 
 // ······
@@ -28,6 +32,7 @@ impl Plugin for SpiritPlugin {
             Update,
             (
                 spawn_spirit,
+                check_lose_count,
                 next_tile_spirit,
                 spirit_collision,
                 move_spirit,
@@ -67,6 +72,9 @@ impl Spirit {
     }
 }
 
+#[derive(Component)]
+pub struct LoseText;
+
 // ·······
 // Systems
 // ·······
@@ -76,23 +84,16 @@ fn spawn_spirit(
     time: Res<Time>,
     assets: Res<GameAssets>,
     mut start: Query<(&TilePos, &mut StartTile, &mut PathTile)>,
-    mut spirits: Query<(&Transform, &mut Spirit)>,
     tilemap: Query<(&TilemapGridSize, &TilemapType, &Transform)>,
 ) {
     for (start_pos, mut start_tile, mut start_path) in start.iter_mut() {
         if start_tile.spawn_timer.tick(time.delta()).just_finished() {
-            // Reduce timer 0.01 seconds until it is 0.5
-            let duration = start_tile.spawn_timer.duration().as_millis();
-            if duration > 600 {
-                start_tile
-                    .spawn_timer
-                    .set_duration(Duration::from_millis((duration - 5) as u64));
-            }
-
             if let Ok((grid_size, map_type, trans)) = tilemap.get_single() {
+                start_tile.lose_counter += 1;
+
                 // Don't spawn entities if the path is not complete
                 if !start_tile.completed_once {
-                    return;
+                    continue;
                 }
 
                 // Calculate the spawn position
@@ -100,13 +101,7 @@ fn spawn_spirit(
 
                 // If there is already another entity there, don't spawn
                 if start_path.count >= 1 {
-                    // Check all spirits
-                    for (trans, mut spirit) in spirits.iter_mut() {
-                        if (trans.translation.xy() - pos).length() < SPIRIT_SIZE {
-                            spirit.prev_tile = None;
-                            return;
-                        }
-                    }
+                    continue;
                 }
                 start_path.count += 1;
 
@@ -120,7 +115,70 @@ fn spawn_spirit(
                     },
                     Spirit::new(*start_pos, pos),
                 ));
+                start_tile.lose_counter = start_tile.lose_counter.saturating_sub(2);
+
+                // Reduce timer 0.01 seconds until it is 0.5
+                let duration = start_tile.spawn_timer.duration().as_millis();
+                if duration > 600 {
+                    start_tile
+                        .spawn_timer
+                        .set_duration(Duration::from_millis((duration - 5) as u64));
+                }
             }
+        }
+    }
+}
+
+fn check_lose_count(
+    mut cmd: Commands,
+    mut state: ResMut<NextState<GameState>>,
+    assets: Res<GameAssets>,
+    mut start: Query<(&TilePos, &mut StartTile)>,
+    mut text: Query<&mut Text, With<LoseText>>,
+    tilemap: Query<(&TilemapGridSize, &TilemapType, &Transform)>,
+) {
+    for (pos, mut start) in start.iter_mut() {
+        if start.lose_counter > 10 {
+            let lose_text = start.lose_text;
+
+            if lose_text.is_none() {
+                if let Ok((grid_size, map_type, trans)) = tilemap.get_single() {
+                    let pos = tile_to_pos(pos, grid_size, map_type, trans);
+                    start.lose_text = Some(
+                        cmd.spawn((
+                            Text2dBundle {
+                                text: Text::from_section(
+                                    "",
+                                    TextStyle {
+                                        font: assets.font.clone(),
+                                        font_size: 48.,
+                                        color: Color::rgb(0.0, 0.2, 0.4),
+                                    },
+                                ),
+                                transform: Transform::from_translation(pos.extend(10.)),
+                                ..default()
+                            },
+                            LoseText,
+                        ))
+                        .id(),
+                    );
+                }
+                continue;
+            };
+
+            if let Ok(mut text) = text.get_mut(lose_text.unwrap()) {
+                let remainder = 16 - ((start.lose_counter - 10) / 2).min(15);
+                text.sections[0].value = if remainder <= 2 {
+                    "!!!".to_string()
+                } else if remainder > 15 {
+                    "".to_string()
+                } else {
+                    remainder.to_string()
+                };
+            }
+        }
+        if start.lose_counter >= LOSE_COUNT {
+            state.set(GameState::End);
         }
     }
 }
