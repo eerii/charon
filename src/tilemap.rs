@@ -19,8 +19,8 @@ use crate::{
 };
 
 pub const MAP_SIZE: TilemapSize = TilemapSize { x: 20, y: 15 };
-const TILE_SIZE: TilemapTileSize = TilemapTileSize { x: 64., y: 64. };
-const GRID_SIZE: TilemapGridSize = TilemapGridSize { x: 72., y: 72. };
+const TILE_SIZE: TilemapTileSize = TilemapTileSize { x: 128., y: 128. };
+const GRID_SIZE: TilemapGridSize = TilemapGridSize { x: 127.8, y: 127.8 };
 
 // ······
 // Plugin
@@ -147,7 +147,7 @@ fn init_tilemap(mut cmd: Commands, tile_assets: Res<TilemapAssets>) {
         grid_size: GRID_SIZE,
         map_type,
         storage,
-        texture: TilemapTexture::Single(tile_assets.tiles.clone()),
+        texture: TilemapTexture::Single(tile_assets.stix.clone()),
         transform: get_tilemap_center_transform(&MAP_SIZE, &GRID_SIZE, &map_type, 0.0),
         ..default()
     });
@@ -282,20 +282,23 @@ fn highlight_tile(
 
     for (mut tex, mut color, mut flip, pos, selected, path, start, end) in tiles.iter_mut() {
         *color = TileColor::default();
+
+        if selected.is_some() {
+            *color = TileColor(Color::rgb(0.5, 0.5, 1.0));
+        }
+
         if !tile_in_level(pos, &level_size) {
             *color = TileColor(Color::rgb(0., 0., 0.1));
-        } else if selected.is_some() {
-            *tex = TileTextureIndex(3);
         } else if start.is_some() {
-            *tex = TileTextureIndex(2);
+            *tex = TileTextureIndex(11);
         } else if end.is_some() {
-            *tex = TileTextureIndex(1);
+            *tex = TileTextureIndex(10);
         } else if path.is_some() {
             *tex = match path.unwrap().shape {
-                PathShape::None => TileTextureIndex(3),
-                PathShape::End => TileTextureIndex(4),
-                PathShape::Straight => TileTextureIndex(5),
-                PathShape::Turn => TileTextureIndex(6),
+                PathShape::None => TileTextureIndex(0),
+                PathShape::End => TileTextureIndex(3),
+                PathShape::Straight => TileTextureIndex(1),
+                PathShape::Turn => TileTextureIndex(5),
                 PathShape::Junction => TileTextureIndex(7),
                 PathShape::Crossing => TileTextureIndex(8),
             };

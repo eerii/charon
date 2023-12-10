@@ -17,7 +17,7 @@ const START_SCORES: [u32; 22] = [
     5000, 7000, 8500,
 ];
 
-const END_SCORES: [u32; 5] = [0, 50, 400, 3000, 9000];
+const END_SCORES: [u32; 5] = [0, 60, 350, 3000, 9000];
 
 pub struct CharonPlugin;
 
@@ -129,7 +129,7 @@ fn spawn_start_end(
         level_size.0.x += 2;
         level_size.0.y += 2;
         if let Ok(mut cam) = cam.get_single_mut() {
-            cam.target_zoom += 0.13;
+            cam.target_zoom += 0.3;
         }
     }
     let (offset, size) = play_to_real_size(&level_size);
@@ -171,7 +171,7 @@ fn spawn_start_end(
 
 fn zoom_camera(mut cam: Query<(&mut OrthographicProjection, &GameCam)>) {
     if let Ok((mut proj, cam)) = cam.get_single_mut() {
-        proj.scale = lerp(proj.scale, 0.7 + cam.target_zoom, 0.01);
+        proj.scale = lerp(proj.scale, 0.9 + cam.target_zoom, 0.01);
     }
 }
 

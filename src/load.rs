@@ -22,6 +22,7 @@ impl Plugin for LoadPlugin {
     fn build(&self, app: &mut App) {
         app.add_loading_state(LoadingState::new(GameState::Loading))
             .init_collection::<GameAssets>()
+            .add_collection_to_loading_state::<_, SpiritAssets>(GameState::Loading)
             .add_collection_to_loading_state::<_, TilemapAssets>(GameState::Loading)
             .add_plugins((ProgressPlugin::new(GameState::Loading)
                 .continue_to(GameState::Menu)
@@ -53,9 +54,20 @@ pub struct GameAssets {
 }
 
 #[derive(AssetCollection, Resource)]
+pub struct SpiritAssets {
+    #[asset(texture_atlas(tile_size_x = 72., tile_size_y = 72., columns = 6, rows = 1))]
+    #[asset(path = "sprites/spirits_stix.png")]
+    pub stix: Handle<TextureAtlas>,
+
+    #[asset(texture_atlas(tile_size_x = 72., tile_size_y = 72., columns = 4, rows = 1))]
+    #[asset(path = "sprites/spirits_phlege.png")]
+    pub phlege: Handle<TextureAtlas>,
+}
+
+#[derive(AssetCollection, Resource)]
 pub struct TilemapAssets {
-    #[asset(path = "sprites/tiles.png")]
-    pub tiles: Handle<Image>,
+    #[asset(path = "sprites/river_stix.png")]
+    pub stix: Handle<Image>,
 }
 
 // ··········

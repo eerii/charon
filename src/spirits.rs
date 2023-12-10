@@ -6,7 +6,7 @@ use rand::Rng;
 
 use crate::{
     game::GameScore,
-    load::GameAssets,
+    load::{GameAssets, SpiritAssets},
     tilemap::{get_neighbours, pos_to_tile, tile_to_pos, EndTile, PathTile, StartTile},
     GameState,
 };
@@ -82,7 +82,7 @@ pub struct LoseText;
 fn spawn_spirit(
     mut cmd: Commands,
     time: Res<Time>,
-    assets: Res<GameAssets>,
+    spirit_assets: Res<SpiritAssets>,
     mut start: Query<(&TilePos, &mut StartTile, &mut PathTile)>,
     tilemap: Query<(&TilemapGridSize, &TilemapType, &Transform)>,
 ) {
@@ -107,15 +107,15 @@ fn spawn_spirit(
 
                 // Spawn the entity at the start of the path
                 cmd.spawn((
-                    SpriteBundle {
-                        texture: assets.bevy_icon.clone(),
-                        transform: Transform::from_translation(pos.extend(1.))
-                            .with_scale(Vec3::splat(0.15)),
+                    SpriteSheetBundle {
+                        sprite: TextureAtlasSprite::new(0),
+                        texture_atlas: spirit_assets.stix.clone(),
+                        transform: Transform::from_translation(pos.extend(1.)),
                         ..default()
                     },
                     Spirit::new(*start_pos, pos),
                 ));
-                start_tile.lose_counter = (start_tile.lose_counter - 1.5).max(0.);
+                start_tile.lose_counter = (start_tile.lose_counter - 2.).max(0.);
 
                 // Reduce timer 0.01 seconds until it is 0.5
                 let duration = start_tile.spawn_timer.duration().as_millis();
@@ -152,7 +152,7 @@ fn check_lose_count(
                                     TextStyle {
                                         font: assets.font.clone(),
                                         font_size: 48.,
-                                        color: Color::rgb(0.0, 0.2, 0.4),
+                                        color: Color::rgb(0.9, 1.0, 0.6),
                                     },
                                 ),
                                 transform: Transform::from_translation(pos.extend(10.)),

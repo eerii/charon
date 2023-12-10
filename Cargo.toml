@@ -25,7 +25,7 @@ bevy = { version = "0.12", default-features = false, features = [
     "bevy_text", "bevy_ui", "multi-threaded", "png", "hdr", "x11", "bevy_gizmos",
     "tonemapping_luts", "default_font", "webgl2",
 ]} 
-bevy_asset_loader = { version = "0.18", features = [ "progress_tracking" ] } # Better asset loader
+bevy_asset_loader = { version = "0.18", features = [ "progress_tracking", "2d" ] } # Better asset loader
 bevy_embedded_assets = { version = "0.9" } # Embed assets in binary
 bevy_kira_audio = { version =  "0.18" } # Improved audio library
 iyes_progress = { version = "0.10", features = [ "assets" ] } # Track loading and game state
