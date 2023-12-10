@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{game::GameScore, load::GameAssets, ui::*, GameState};
+use crate::{game::GameScore, load::GameAssets, tilemap::TilesAvailable, ui::*, GameState};
 
 // ······
 // Plugin
@@ -23,6 +23,9 @@ impl Plugin for HudPlugin {
 #[derive(Component)]
 struct ScoreText;
 
+#[derive(Component)]
+struct TilesText;
+
 // ·······
 // Systems
 // ·······
@@ -34,7 +37,7 @@ fn init_hud(mut cmd: Commands, assets: Res<GameAssets>, mut node: Query<Entity, 
             node.with_children(|parent| {
                 parent.spawn((
                     TextBundle::from_section(
-                        "0",
+                        "<> 0",
                         TextStyle {
                             font: assets.font.clone(),
                             font_size: 24.0,
@@ -49,14 +52,40 @@ fn init_hud(mut cmd: Commands, assets: Res<GameAssets>, mut node: Query<Entity, 
                     }),
                     ScoreText,
                 ));
+
+                parent.spawn((
+                    TextBundle::from_section(
+                        "[] 0",
+                        TextStyle {
+                            font: assets.font.clone(),
+                            font_size: 24.0,
+                            color: Color::WHITE,
+                        },
+                    )
+                    .with_style(Style {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(5.0),
+                        top: Val::Px(5.0),
+                        ..default()
+                    }),
+                    TilesText,
+                ));
             });
         }
     }
 }
 
-fn update_hud(score: Res<GameScore>, mut text: Query<&mut Text, With<ScoreText>>) {
-    for mut text in text.iter_mut() {
-        text.sections[0].value = format!("{}", score.score);
+fn update_hud(
+    score: Res<GameScore>,
+    mut score_text: Query<&mut Text, (With<ScoreText>, Without<TilesText>)>,
+    tiles: Res<TilesAvailable>,
+    mut tiles_text: Query<&mut Text, (With<TilesText>, Without<ScoreText>)>,
+) {
+    for mut text in score_text.iter_mut() {
+        text.sections[0].value = format!("<> {}", score.score);
+    }
+    for mut text in tiles_text.iter_mut() {
+        text.sections[0].value = format!("[] {}", tiles.0);
     }
 }
 

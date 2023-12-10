@@ -14,10 +14,11 @@ use crate::{
     config::Keybinds,
     input::{Bind, MousePosition},
     load::TilemapAssets,
-    GameState, spirits::INITIAL_SPAWN_TIME,
+    spirits::INITIAL_SPAWN_TIME,
+    GameState,
 };
 
-const MAP_SIZE: TilemapSize = TilemapSize { x: 20, y: 15 };
+pub const MAP_SIZE: TilemapSize = TilemapSize { x: 20, y: 15 };
 const TILE_SIZE: TilemapTileSize = TilemapTileSize { x: 64., y: 64. };
 const GRID_SIZE: TilemapGridSize = TilemapGridSize { x: 72., y: 72. };
 
@@ -29,7 +30,7 @@ pub struct TilePlugin;
 
 impl Plugin for TilePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(TileChanged(0))
+        app.insert_resource(TilesAvailable(9))
             .add_plugins(TilemapPlugin)
             .add_systems(OnEnter(GameState::Play), init_tilemap.run_if(run_once()))
             .add_systems(
@@ -40,7 +41,7 @@ impl Plugin for TilePlugin {
                 PostUpdate,
                 (
                     highlight_tile,
-                    (autotile, pathfinding).run_if(resource_changed::<TileChanged>()),
+                    (autotile, pathfinding).run_if(resource_changed::<TilesAvailable>()),
                 )
                     .run_if(in_state(GameState::Play)),
             );
@@ -52,7 +53,7 @@ impl Plugin for TilePlugin {
 // ·········
 
 #[derive(Resource)]
-pub struct TileChanged(pub u32);
+pub struct TilesAvailable(pub u32);
 
 #[derive(Resource)]
 pub struct LevelSize(pub TilemapSize);
@@ -68,7 +69,7 @@ pub struct SelectedTile;
 pub struct StartTile {
     pub completed_once: bool,
     pub spawn_timer: Timer,
-    pub lose_counter: u32,
+    pub lose_counter: f32,
     pub lose_text: Option<Entity>,
 }
 
@@ -77,7 +78,7 @@ impl Default for StartTile {
         Self {
             completed_once: false,
             spawn_timer: Timer::from_seconds(INITIAL_SPAWN_TIME, TimerMode::Repeating),
-            lose_counter: 0,
+            lose_counter: 0.,
             lose_text: None,
         }
     }
@@ -195,7 +196,7 @@ fn click_tile(
     tilemap: Query<(&TilemapSize, &TileStorage)>,
     input: Res<Input<Bind>>,
     keybinds: Res<Persistent<Keybinds>>,
-    mut changed: ResMut<TileChanged>,
+    mut available: ResMut<TilesAvailable>,
     mut prev: Local<Option<(bool, Option<TilePos>, Option<TilePos>)>>,
 ) {
     let select = keybinds.interact.iter().any(|bind| {
@@ -222,13 +223,16 @@ fn click_tile(
                     // Erase path
                     if path.is_some() {
                         cmd.entity(entity).remove::<PathTile>();
-                        changed.0 -= 1;
+                        available.0 += 1;
                         return;
                     }
 
                     // Add paths
+                    if available.0 == 0 {
+                        return;
+                    }
                     cmd.entity(entity).insert(PathTile::default());
-                    changed.0 += 1;
+                    available.0 -= 1;
 
                     // After first and second path
                     if two_ago.is_some() {
@@ -242,6 +246,7 @@ fn click_tile(
                             if prev_neighbours.iter().any(|p| p == pos) {
                                 let entity = storage.get(one).unwrap();
                                 cmd.entity(entity).remove::<PathTile>();
+                                available.0 += 1;
                                 one_ago.replace(*pos);
                                 return;
                             }
@@ -308,9 +313,9 @@ fn pathfinding(
     mut paths: Query<(&TilePos, &mut PathTile)>,
 ) {
     // Clear all paths
-    /*for (_, mut path) in paths.iter_mut() {
+    for (_, mut path) in paths.iter_mut() {
         path.distance.clear();
-    }*/
+    }
 
     if let Ok((size, storage)) = tilemap.get_single() {
         for end_pos in end.iter() {

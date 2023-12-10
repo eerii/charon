@@ -5,10 +5,13 @@ use bevy_ecs_tilemap::prelude::*;
 use rand::Rng;
 
 use crate::{
-    tilemap::{play_to_real_size, EndTile, LevelSize, PathTile, StartTile, TileChanged},
+    tilemap::{
+        play_to_real_size, EndTile, LevelSize, PathTile, StartTile, TilesAvailable, MAP_SIZE,
+    },
     GameState,
 };
 
+//0, 1, 2, 3, 4, 5, 130, 160, 250, 300, 400, 500, 700, 900, 1200, 1500, 2000, 2500, 3500,
 const START_SCORES: [u32; 22] = [
     0, 5, 30, 50, 70, 100, 130, 160, 250, 300, 400, 500, 700, 900, 1200, 1500, 2000, 2500, 3500,
     5000, 7000, 8500,
@@ -26,7 +29,11 @@ impl Plugin for CharonPlugin {
         )
         .add_systems(
             Update,
-            spawn_start_end.run_if(resource_exists_and_changed::<GameScore>()),
+            (
+                zoom_camera,
+                spawn_start_end.run_if(resource_exists_and_changed::<GameScore>()),
+            )
+                .run_if(in_state(GameState::Play)),
         )
         .add_systems(OnExit(GameState::Play), pause_game);
     }
@@ -45,15 +52,21 @@ pub struct GameScore {
 // Components
 // ··········
 
-#[derive(Component)]
-pub struct GameCam;
+#[derive(Component, Default)]
+pub struct GameCam {
+    target_zoom: f32,
+}
 
 // ·······
 // Systems
 // ·······
 
 fn init_game(mut cmd: Commands) {
-    cmd.spawn((Camera2dBundle::default(), RenderLayers::layer(0), GameCam));
+    cmd.spawn((
+        Camera2dBundle::default(),
+        RenderLayers::layer(0),
+        GameCam::default(),
+    ));
     cmd.insert_resource(GameScore::default())
 }
 
@@ -73,10 +86,11 @@ fn spawn_start_end(
     mut cmd: Commands,
     score: Res<GameScore>,
     mut level_size: ResMut<LevelSize>,
-    mut tile_changed: ResMut<TileChanged>,
+    mut available: ResMut<TilesAvailable>,
     tilemap: Query<&TileStorage>,
     starts: Query<&TilePos, With<StartTile>>,
     ends: Query<&TilePos, With<EndTile>>,
+    mut cam: Query<&mut GameCam>,
     mut start_spawned: Local<usize>,
     mut end_spawned: Local<usize>,
 ) {
@@ -110,10 +124,13 @@ fn spawn_start_end(
         return;
     };
 
-    // Grow level size every 2 starts
-    if is_start && (*start_spawned + 2) % 3 == 0 {
+    // Grow level size every 2 starts (only if we are not at the max size)
+    if is_start && (*start_spawned + 2) % 3 == 0 && level_size.0.x < MAP_SIZE.x {
         level_size.0.x += 2;
         level_size.0.y += 2;
+        if let Ok(mut cam) = cam.get_single_mut() {
+            cam.target_zoom += 0.13;
+        }
     }
     let (offset, size) = play_to_real_size(&level_size);
 
@@ -130,7 +147,7 @@ fn spawn_start_end(
             if let Some(pos) = pos {
                 cmd.entity(storage.get(&pos).unwrap())
                     .insert((StartTile::default(), PathTile::default()));
-                tile_changed.0 += 1;
+                available.0 += 3;
             }
         }
 
@@ -146,9 +163,15 @@ fn spawn_start_end(
             if let Some(pos) = pos {
                 cmd.entity(storage.get(&pos).unwrap())
                     .insert((EndTile, PathTile::default()));
-                tile_changed.0 += 1;
+                available.0 += 5;
             }
         }
+    }
+}
+
+fn zoom_camera(mut cam: Query<(&mut OrthographicProjection, &GameCam)>) {
+    if let Ok((mut proj, cam)) = cam.get_single_mut() {
+        proj.scale = lerp(proj.scale, 0.7 + cam.target_zoom, 0.01);
     }
 }
 
@@ -208,4 +231,8 @@ fn get_spawn_pos(
 
 fn tile_distance(a: &TilePos, b: &TilePos) -> u32 {
     ((a.x as i32 - b.x as i32).abs() + (a.y as i32 - b.y as i32).abs()) as u32
+}
+
+fn lerp(a: f32, b: f32, t: f32) -> f32 {
+    a + (b - a) * t
 }

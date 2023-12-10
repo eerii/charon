@@ -16,7 +16,7 @@ const SPIRIT_SIZE: f32 = 32.;
 const MAX_SPIRITS_IN_TILE: u32 = 3;
 
 pub const INITIAL_SPAWN_TIME: f32 = 1.0;
-const LOSE_COUNT: u32 = 40;
+const LOSE_COUNT: f32 = 40.;
 
 const FUN_A: f32 = 10.;
 
@@ -89,7 +89,7 @@ fn spawn_spirit(
     for (start_pos, mut start_tile, mut start_path) in start.iter_mut() {
         if start_tile.spawn_timer.tick(time.delta()).just_finished() {
             if let Ok((grid_size, map_type, trans)) = tilemap.get_single() {
-                start_tile.lose_counter += 1;
+                start_tile.lose_counter += 1.;
 
                 // Don't spawn entities if the path is not complete
                 if !start_tile.completed_once {
@@ -115,7 +115,7 @@ fn spawn_spirit(
                     },
                     Spirit::new(*start_pos, pos),
                 ));
-                start_tile.lose_counter = start_tile.lose_counter.saturating_sub(2);
+                start_tile.lose_counter = (start_tile.lose_counter - 1.5).max(0.);
 
                 // Reduce timer 0.01 seconds until it is 0.5
                 let duration = start_tile.spawn_timer.duration().as_millis();
@@ -138,7 +138,7 @@ fn check_lose_count(
     tilemap: Query<(&TilemapGridSize, &TilemapType, &Transform)>,
 ) {
     for (pos, mut start) in start.iter_mut() {
-        if start.lose_counter > 10 {
+        if start.lose_counter > 10. {
             let lose_text = start.lose_text;
 
             if lose_text.is_none() {
@@ -167,13 +167,13 @@ fn check_lose_count(
             };
 
             if let Ok(mut text) = text.get_mut(lose_text.unwrap()) {
-                let remainder = 16 - ((start.lose_counter - 10) / 2).min(15);
-                text.sections[0].value = if remainder <= 2 {
+                let remainder = 16. - ((start.lose_counter - 10.) / 2.).min(15.);
+                text.sections[0].value = if remainder <= 2. {
                     "!!!".to_string()
-                } else if remainder > 15 {
+                } else if remainder > 15. {
                     "".to_string()
                 } else {
-                    remainder.to_string()
+                    remainder.round().to_string()
                 };
             }
         }

@@ -25,8 +25,8 @@ a game for the bevy jam 4
 
 - [ ] important tweaks (dom mañ)
     - [ ] add sprites
-    - [ ] zoom out screen
-    - [ ] limited path tiles
+    - [x] zoom out screen
+    - [x] limited path tiles
     - [ ] end screen (win/lose)
 
 - [ ] new features (dom tar)
