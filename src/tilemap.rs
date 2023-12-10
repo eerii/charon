@@ -30,7 +30,7 @@ pub struct TilePlugin;
 
 impl Plugin for TilePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(TilesAvailable(11))
+        app.insert_resource(TilesAvailable(6))
             .insert_resource(SelectedPos(None))
             .add_plugins(TilemapPlugin)
             .add_systems(OnEnter(GameState::Play), init_tilemap.run_if(run_once()))
@@ -299,7 +299,7 @@ fn highlight_tile(
         }
 
         if !tile_in_level(pos, &level_size) {
-            *color = TileColor(Color::rgb(0., 0., 0.1));
+            *color = TileColor(Color::rgb(0.2, 0.1, 0.35));
             continue;
         }
 

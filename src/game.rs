@@ -18,7 +18,7 @@ const START_SCORES: [u32; 20] = [
     5000,
 ];
 
-const END_SCORES: [u32; 4] = [0, 60, 350, 3000];
+const END_SCORES: [u32; 6] = [0, 60, 120, 350, 1000, 3000];
 
 pub struct CharonPlugin;
 
@@ -127,7 +127,7 @@ fn spawn_start_end(
     };
 
     // Grow level size every 2 starts (only if we are not at the max size)
-    if is_start && (*start_spawned + 2) % 3 == 0 && level_size.0.x < MAP_SIZE.x {
+    if is_start && (*start_spawned + 3) % 4 == 0 && level_size.0.x < MAP_SIZE.x {
         level_size.0.x += 2;
         level_size.0.y += 2;
         if let Ok(mut cam) = cam.get_single_mut() {
@@ -148,15 +148,13 @@ fn spawn_start_end(
                 } else {
                     get_spawn_pos(&offset, &size, &starts, &ends)
                 }
+            } else if *end_spawned <= 1 {
+                Some(TilePos {
+                    x: offset.x + size.x - 2,
+                    y: offset.y + size.y / 2,
+                })
             } else {
-                if *end_spawned <= 1 {
-                    Some(TilePos {
-                        x: offset.x + size.x - 2,
-                        y: offset.y + size.y / 2,
-                    })
-                } else {
-                    get_spawn_pos(&offset, &size, &starts, &ends)
-                }
+                get_spawn_pos(&offset, &size, &starts, &ends)
             }
         };
 

@@ -49,6 +49,12 @@ pub struct GameAssets {
     #[asset(path = "icons/bevy.png")]
     pub bevy_icon: Handle<Image>,
 
+    #[asset(path = "sprites/coin.png")]
+    pub coin_icon: Handle<Image>,
+
+    #[asset(path = "sprites/river.png")]
+    pub river_icon: Handle<Image>,
+
     #[asset(path = "fonts/sans.ttf")]
     pub font: Handle<Font>,
 }

@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 use std::time::Duration;
 
 use bevy::prelude::*;
@@ -39,6 +41,7 @@ impl Plugin for SpiritPlugin {
                     next_tile_spirit,
                     spirit_collision,
                     move_spirit,
+                    animate_spirit,
                     integrate,
                 )
                     .run_if(in_state(GameState::Play)),
@@ -59,7 +62,7 @@ pub struct EndTimer(Timer);
 
 impl Default for EndTimer {
     fn default() -> Self {
-        Self(Timer::from_seconds(0.3, TimerMode::Repeating))
+        Self(Timer::from_seconds(0.25, TimerMode::Repeating))
     }
 }
 
@@ -76,6 +79,7 @@ pub struct Spirit {
     next_pos: Vec2,
     selected_end: Option<TilePos>,
     vel: Vec2,
+    animate_timer: Timer,
 }
 
 impl Spirit {
@@ -88,6 +92,7 @@ impl Spirit {
             next_pos: curr_pos,
             selected_end: None,
             vel: Vec2::ZERO,
+            animate_timer: Timer::from_seconds(0.5, TimerMode::Repeating),
         }
     }
 }
@@ -133,7 +138,7 @@ fn spawn_spirit(
                 // Spawn the entity at the start of the path
                 cmd.spawn((
                     SpriteSheetBundle {
-                        sprite: TextureAtlasSprite::new(0),
+                        sprite: TextureAtlasSprite::new((rand::random::<usize>() % 3) * 2),
                         texture_atlas: spirit_assets.stix.clone(),
                         transform: Transform::from_translation(pos.extend(5.)),
                         ..default()
@@ -163,49 +168,47 @@ fn check_lose_count(
     tilemap: Query<(&TilemapLayer, &TilemapGridSize, &TilemapType, &Transform)>,
 ) {
     for (pos, mut start) in start.iter_mut() {
-        if start.lose_counter > 1. {
-            let lose_text = start.lose_text;
+        let lose_text = start.lose_text;
 
-            if lose_text.is_none() {
-                for (layer, grid_size, map_type, trans) in tilemap.iter() {
-                    match layer {
-                        TilemapLayer::RiverStix => {}
-                        _ => continue,
-                    }
-
-                    let pos = tile_to_pos(pos, grid_size, map_type, trans);
-                    start.lose_text = Some(
-                        cmd.spawn((
-                            Text2dBundle {
-                                text: Text::from_section(
-                                    "",
-                                    TextStyle {
-                                        font: assets.font.clone(),
-                                        font_size: 48.,
-                                        color: Color::rgb(0.9, 1.0, 0.6),
-                                    },
-                                ),
-                                transform: Transform::from_translation(pos.extend(10.)),
-                                ..default()
-                            },
-                            LoseText,
-                        ))
-                        .id(),
-                    );
+        if lose_text.is_none() {
+            for (layer, grid_size, map_type, trans) in tilemap.iter() {
+                match layer {
+                    TilemapLayer::RiverStix => {}
+                    _ => continue,
                 }
-                continue;
-            };
 
-            if let Ok(mut text) = text.get_mut(lose_text.unwrap()) {
-                let remainder = (LOSE_COUNT - start.lose_counter) / 2. + 1.;
-                text.sections[0].value = if remainder <= 2. {
-                    "!!!".to_string()
-                } else if remainder > 15. {
-                    "".to_string()
-                } else {
-                    remainder.round().to_string()
-                };
+                let pos = tile_to_pos(pos, grid_size, map_type, trans);
+                start.lose_text = Some(
+                    cmd.spawn((
+                        Text2dBundle {
+                            text: Text::from_section(
+                                "",
+                                TextStyle {
+                                    font: assets.font.clone(),
+                                    font_size: 48.,
+                                    color: Color::rgb(0.9, 0.4, 0.6),
+                                },
+                            ),
+                            transform: Transform::from_translation(pos.extend(10.)),
+                            ..default()
+                        },
+                        LoseText,
+                    ))
+                    .id(),
+                );
             }
+            continue;
+        };
+
+        if let Ok(mut text) = text.get_mut(lose_text.unwrap()) {
+            let remainder = (LOSE_COUNT - start.lose_counter) / 2. - 3.;
+            text.sections[0].value = if remainder <= 0. {
+                "!!!".to_string()
+            } else if remainder > 10. {
+                "".to_string()
+            } else {
+                remainder.round().to_string()
+            };
         }
         if start.lose_counter >= LOSE_COUNT {
             state.set(GameState::End);
@@ -249,17 +252,7 @@ fn next_tile_spirit(
                 }
 
                 // TODO: Move this so it updates for other spirits
-                // Update counts
-                if let Some(entity) = storage.get(&tile_pos) {
-                    if let Ok((_, mut path)) = paths.get_mut(entity) {
-                        path.count += 1;
-                    }
-                }
-                if let Some(entity) = storage.get(&spirit.curr_tile) {
-                    if let Ok((_, mut path)) = paths.get_mut(entity) {
-                        path.count = path.count.saturating_sub(1);
-                    }
-                }
+
                 spirit.curr_tile = tile_pos;
 
                 // If it arrived at the next tile (or if there is no next tile)
@@ -385,6 +378,18 @@ fn next_tile_spirit(
                     spirit.next_pos =
                         tile_to_pos(&spirit.next_tile.unwrap(), grid_size, map_type, map_trans);
                     spirit.selected_end = next.unwrap().2;
+
+                    // Update counts
+                    if let Some(entity) = storage.get(&spirit.next_tile.unwrap()) {
+                        if let Ok((_, mut path)) = paths.get_mut(entity) {
+                            path.count += 1;
+                        }
+                    }
+                    if let Some(entity) = storage.get(&spirit.prev_tile.unwrap()) {
+                        if let Ok((_, mut path)) = paths.get_mut(entity) {
+                            path.count = path.count.saturating_sub(1);
+                        }
+                    }
                 }
             }
         }
@@ -406,7 +411,7 @@ fn clear_end_count(
         for (entity, spirit) in spirits.iter() {
             if spirit.curr_tile == *end_pos {
                 cmd.get_entity(entity).unwrap().despawn_recursive();
-                end.count -= 1;
+                end.count = end.count.saturating_sub(1);
                 score.score += 1;
                 break;
             }
@@ -449,5 +454,18 @@ fn integrate(mut spirits: Query<(&Spirit, &mut Transform)>, time: Res<Time>) {
 
         // Update position
         trans.translation += (spirit.vel + cross * offset).extend(0.) * time.delta_seconds();
+    }
+}
+
+fn animate_spirit(time: Res<Time>, mut spirits: Query<(&mut Spirit, &mut TextureAtlasSprite)>) {
+    for (mut spirit, mut tex) in spirits.iter_mut() {
+        if !spirit.animate_timer.tick(time.delta()).just_finished() {
+            continue;
+        }
+        tex.index = if tex.index % 2 == 0 {
+            tex.index + 1
+        } else {
+            tex.index - 1
+        };
     }
 }

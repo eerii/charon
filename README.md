@@ -23,34 +23,35 @@ a game for the bevy jam 4
     - [x] spawn end points
     - [x] lose timer and visual feedback
 
-- [ ] important tweaks (dom mañ)
-    - [ ] add sprites
+- [x] important tweaks (dom) 0.4
+    - [x] add sprites
     - [x] zoom out screen
     - [x] limited path tiles
+    - [x] overlay ui
+
+- [ ] new features (lun)
     - [ ] end screen (win/lose)
-
-- [ ] new features (dom tar)
-    - [ ] other river types
+    - [ ] main menu with image
+    - [ ] sound and music
+    - [ ] other river types + bridges
     - [ ] other spirit behaviour
-    - [ ] bridges
-    - [ ] overlay ui (bridge selection, n paths...)
-    - [ ] better path drawing 
 
-- [ ] presentation (dom tar)
+- [ ] playtesting and bugfixing (lun)
+    - [ ] review settings menu
+    - [ ] profiling and optimization
+
+- [ ] presentation (lun)
     - [ ] write readme
     - [ ] write jam page
     - [ ] presubmit game
 
 - [ ] would be nice (???)
+    - [x] animations
+    - [ ] better path drawing 
     - [ ] alternate paths
     - [ ] improve lose timer
-    - [ ] animations
     - [ ] spirit dialogues
-    - [ ] sound and music
     - [ ] tweening and animation
     - [ ] tiles only despawn after no entities are in them
 
-- [ ] playtesting and bugfixing (lun)
-    - [ ] review settings menu
-    - [ ] profiling and optimization
 </details>

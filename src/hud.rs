@@ -35,41 +35,85 @@ fn init_hud(mut cmd: Commands, assets: Res<GameAssets>, mut node: Query<Entity, 
     if let Ok(node) = node.get_single_mut() {
         if let Some(mut node) = cmd.get_entity(node) {
             node.with_children(|parent| {
-                parent.spawn((
-                    TextBundle::from_section(
-                        "<> 0",
-                        TextStyle {
-                            font: assets.font.clone(),
-                            font_size: 24.0,
-                            color: Color::WHITE,
+                parent
+                    .spawn(NodeBundle {
+                        style: Style {
+                            position_type: PositionType::Absolute,
+                            left: Val::Px(5.0),
+                            top: Val::Px(5.0),
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            column_gap: Val::Px(4.),
+                            ..default()
                         },
-                    )
-                    .with_style(Style {
-                        position_type: PositionType::Absolute,
-                        right: Val::Px(5.0),
-                        top: Val::Px(5.0),
                         ..default()
-                    }),
-                    ScoreText,
-                ));
+                    })
+                    .with_children(|tiles| {
+                        tiles.spawn(ImageBundle {
+                            image: UiImage {
+                                texture: assets.river_icon.clone(),
+                                ..default()
+                            },
+                            style: Style {
+                                width: Val::Px(24.),
+                                ..default()
+                            },
+                            ..default()
+                        });
 
-                parent.spawn((
-                    TextBundle::from_section(
-                        "[] 0",
-                        TextStyle {
-                            font: assets.font.clone(),
-                            font_size: 24.0,
-                            color: Color::WHITE,
+                        tiles.spawn((
+                            TextBundle::from_section(
+                                "0",
+                                TextStyle {
+                                    font: assets.font.clone(),
+                                    font_size: 24.0,
+                                    color: Color::WHITE,
+                                },
+                            ),
+                            TilesText,
+                        ));
+                    });
+
+                parent
+                    .spawn(NodeBundle {
+                        style: Style {
+                            position_type: PositionType::Absolute,
+                            right: Val::Px(5.0),
+                            top: Val::Px(5.0),
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            column_gap: Val::Px(4.),
+                            ..default()
                         },
-                    )
-                    .with_style(Style {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(5.0),
-                        top: Val::Px(5.0),
                         ..default()
-                    }),
-                    TilesText,
-                ));
+                    })
+                    .with_children(|score| {
+                        score.spawn((
+                            TextBundle::from_section(
+                                "0",
+                                TextStyle {
+                                    font: assets.font.clone(),
+                                    font_size: 24.0,
+                                    color: Color::WHITE,
+                                },
+                            ),
+                            ScoreText,
+                        ));
+
+                        score.spawn(ImageBundle {
+                            image: UiImage {
+                                texture: assets.coin_icon.clone(),
+                                ..default()
+                            },
+                            style: Style {
+                                width: Val::Px(24.),
+                                ..default()
+                            },
+                            ..default()
+                        });
+                    });
             });
         }
     }
@@ -82,10 +126,10 @@ fn update_hud(
     mut tiles_text: Query<&mut Text, (With<TilesText>, Without<ScoreText>)>,
 ) {
     for mut text in score_text.iter_mut() {
-        text.sections[0].value = format!("<> {}", score.score);
+        text.sections[0].value = format!("{}", score.score);
     }
     for mut text in tiles_text.iter_mut() {
-        text.sections[0].value = format!("[] {}", tiles.0);
+        text.sections[0].value = format!("{}", tiles.0);
     }
 }
 
