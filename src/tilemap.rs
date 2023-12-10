@@ -18,9 +18,9 @@ use crate::{
     GameState,
 };
 
-pub const MAP_SIZE: TilemapSize = TilemapSize { x: 20, y: 15 };
+pub const MAP_SIZE: TilemapSize = TilemapSize { x: 24, y: 19 };
 const TILE_SIZE: TilemapTileSize = TilemapTileSize { x: 128., y: 128. };
-const GRID_SIZE: TilemapGridSize = TilemapGridSize { x: 127.8, y: 127.8 };
+const GRID_SIZE: TilemapGridSize = TilemapGridSize { x: 127.5, y: 127.5 };
 
 // ······
 // Plugin
@@ -30,7 +30,8 @@ pub struct TilePlugin;
 
 impl Plugin for TilePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(TilesAvailable(9))
+        app.insert_resource(TilesAvailable(11))
+            .insert_resource(SelectedPos(None))
             .add_plugins(TilemapPlugin)
             .add_systems(OnEnter(GameState::Play), init_tilemap.run_if(run_once()))
             .add_systems(
@@ -54,6 +55,9 @@ impl Plugin for TilePlugin {
 
 #[derive(Resource)]
 pub struct TilesAvailable(pub u32);
+
+#[derive(Resource)]
+pub struct SelectedPos(Option<TilePos>);
 
 #[derive(Resource)]
 pub struct LevelSize(pub TilemapSize);
@@ -116,41 +120,60 @@ impl Default for PathTile {
     }
 }
 
+#[derive(Component, Clone, Copy)]
+pub enum TilemapLayer {
+    Background,
+    RiverStix,
+    RiverPhlege,
+    Foreground,
+}
+const TILEMAP_LAYERS: [TilemapLayer; 4] = [
+    TilemapLayer::Background,
+    TilemapLayer::RiverStix,
+    TilemapLayer::RiverPhlege,
+    TilemapLayer::Foreground,
+];
+
+#[derive(Component)]
+pub enum ForegroundTile {
+    Start,
+    End,
+}
+
 // ·······
 // Systems
 // ·······
 
 fn init_tilemap(mut cmd: Commands, tile_assets: Res<TilemapAssets>) {
-    let tilemap = cmd.spawn_empty().id();
+    for (i, &layer) in TILEMAP_LAYERS.iter().enumerate() {
+        let tilemap = cmd.spawn_empty().id();
 
-    // Spawn tiles
-    let mut storage = TileStorage::empty(MAP_SIZE);
-    for x in 0..MAP_SIZE.x {
-        for y in 0..MAP_SIZE.y {
-            let pos = TilePos { x, y };
-            let tile = cmd
-                .spawn(TileBundle {
-                    position: pos,
-                    tilemap_id: TilemapId(tilemap),
-                    ..default()
-                })
-                .id();
-            storage.set(&pos, tile);
-        }
+        // Spawn tiles
+        let mut storage = TileStorage::empty(MAP_SIZE);
+        fill_tilemap(
+            TilemapId(tilemap),
+            MAP_SIZE,
+            &mut storage,
+            TileVisible(i == 0),
+            &mut cmd,
+        );
+
+        // Create tilemap
+        let map_type = TilemapType::default();
+        cmd.entity(tilemap).insert((
+            TilemapBundle {
+                size: MAP_SIZE,
+                tile_size: TILE_SIZE,
+                grid_size: GRID_SIZE,
+                map_type,
+                storage,
+                texture: TilemapTexture::Single(tile_assets.stix.clone()),
+                transform: get_tilemap_center_transform(&MAP_SIZE, &GRID_SIZE, &map_type, i as f32),
+                ..default()
+            },
+            layer,
+        ));
     }
-
-    // Create tilemap
-    let map_type = TilemapType::default();
-    cmd.entity(tilemap).insert(TilemapBundle {
-        size: MAP_SIZE,
-        tile_size: TILE_SIZE,
-        grid_size: GRID_SIZE,
-        map_type,
-        storage,
-        texture: TilemapTexture::Single(tile_assets.stix.clone()),
-        transform: get_tilemap_center_transform(&MAP_SIZE, &GRID_SIZE, &map_type, 0.0),
-        ..default()
-    });
 
     cmd.insert_resource(LevelSize(TilemapSize { x: 8, y: 3 }));
 }
@@ -158,8 +181,10 @@ fn init_tilemap(mut cmd: Commands, tile_assets: Res<TilemapAssets>) {
 fn select_tile(
     mut cmd: Commands,
     mouse: Res<MousePosition>,
+    mut sel_pos: ResMut<SelectedPos>,
     level_size: Res<LevelSize>,
     tilemap: Query<(
+        &TilemapLayer,
         &TilemapSize,
         &TilemapGridSize,
         &TilemapType,
@@ -172,13 +197,20 @@ fn select_tile(
         cmd.entity(entity).remove::<SelectedTile>();
     }
 
-    for (map_size, grid_size, map_type, tile_storage, trans) in tilemap.iter() {
+    for (layer, map_size, grid_size, map_type, tile_storage, trans) in tilemap.iter() {
+        match layer {
+            TilemapLayer::RiverStix => {}
+            _ => continue,
+        }
+
         if let Some(tile_pos) = pos_to_tile(&mouse.0, map_size, grid_size, map_type, trans) {
             if !tile_in_level(&tile_pos, &level_size) {
+                sel_pos.0 = None;
                 return;
             }
             if let Some(tile_entity) = tile_storage.get(&tile_pos) {
                 cmd.entity(tile_entity).insert(SelectedTile);
+                sel_pos.0 = Some(tile_pos);
             }
         }
     }
@@ -186,14 +218,8 @@ fn select_tile(
 
 fn click_tile(
     mut cmd: Commands,
-    mut selected: Query<Entity, With<SelectedTile>>,
-    tiles: Query<(
-        &TilePos,
-        Option<&PathTile>,
-        Option<&StartTile>,
-        Option<&EndTile>,
-    )>,
-    tilemap: Query<(&TilemapSize, &TileStorage)>,
+    mut selected: Query<(Entity, &mut TileVisible), With<SelectedTile>>,
+    tiles: Query<(Option<&PathTile>, Option<&StartTile>, Option<&EndTile>)>,
     input: Res<Input<Bind>>,
     keybinds: Res<Persistent<Keybinds>>,
     mut available: ResMut<TilesAvailable>,
@@ -208,12 +234,12 @@ fn click_tile(
     });
 
     if select {
-        if let Ok(entity) = selected.get_single_mut() {
-            if let Ok((pos, path, start, end)) = tiles.get(entity) {
+        if let Ok((entity, mut visible)) = selected.get_single_mut() {
+            if let Ok((path, start, end)) = tiles.get(entity) {
                 if prev.is_none() {
                     *prev = Some((path.is_some(), None, None));
                 }
-                let (is_path, one_ago, two_ago) = prev.as_mut().unwrap();
+                let (is_path, _one_ago, _two_ago) = prev.as_mut().unwrap();
 
                 if path.is_some() != *is_path {
                     return;
@@ -223,6 +249,7 @@ fn click_tile(
                     // Erase path
                     if path.is_some() {
                         cmd.entity(entity).remove::<PathTile>();
+                        visible.0 = false;
                         available.0 += 1;
                         return;
                     }
@@ -232,27 +259,8 @@ fn click_tile(
                         return;
                     }
                     cmd.entity(entity).insert(PathTile::default());
+                    visible.0 = true;
                     available.0 -= 1;
-
-                    // After first and second path
-                    if two_ago.is_some() {
-                        let one = one_ago.as_ref().unwrap();
-                        let two = two_ago.as_ref().unwrap();
-
-                        if let Ok((size, storage)) = tilemap.get_single() {
-                            let prev_neighbours = get_neighbours(two, size);
-
-                            // If the new tile is also a neighbour of the one two ago, delete the previous one
-                            if prev_neighbours.iter().any(|p| p == pos) {
-                                let entity = storage.get(one).unwrap();
-                                cmd.entity(entity).remove::<PathTile>();
-                                available.0 += 1;
-                                one_ago.replace(*pos);
-                                return;
-                            }
-                        }
-                    }
-                    *two_ago = one_ago.replace(*pos);
                 }
             }
             return;
@@ -267,12 +275,12 @@ fn highlight_tile(
         &mut TileColor,
         &mut TileFlip,
         &TilePos,
-        Option<&SelectedTile>,
         Option<&PathTile>,
         Option<&StartTile>,
-        Option<&EndTile>,
+        Option<&ForegroundTile>,
     )>,
     level_size: Res<LevelSize>,
+    sel_pos: Res<SelectedPos>,
     end_tiles: Query<(&TilePos, With<EndTile>)>,
 ) {
     let mut ends = Vec::new();
@@ -280,27 +288,40 @@ fn highlight_tile(
         ends.push(*pos);
     }
 
-    for (mut tex, mut color, mut flip, pos, selected, path, start, end) in tiles.iter_mut() {
+    for (mut tex, mut color, mut flip, pos, path, start, foreground) in tiles.iter_mut() {
         *color = TileColor::default();
 
-        if selected.is_some() {
-            *color = TileColor(Color::rgb(0.5, 0.5, 1.0));
+        if let Some(sel_pos) = sel_pos.0 {
+            if sel_pos == *pos && path.is_none() && foreground.is_none() {
+                *tex = TileTextureIndex(1);
+                continue;
+            }
         }
 
         if !tile_in_level(pos, &level_size) {
             *color = TileColor(Color::rgb(0., 0., 0.1));
+            continue;
+        }
+
+        if let Some(fg) = foreground {
+            match fg {
+                ForegroundTile::Start => {
+                    *tex = TileTextureIndex(12);
+                }
+                ForegroundTile::End => {
+                    *tex = TileTextureIndex(11);
+                }
+            }
         } else if start.is_some() {
-            *tex = TileTextureIndex(11);
-        } else if end.is_some() {
-            *tex = TileTextureIndex(10);
+            *tex = TileTextureIndex(9);
         } else if path.is_some() {
             *tex = match path.unwrap().shape {
                 PathShape::None => TileTextureIndex(0),
-                PathShape::End => TileTextureIndex(3),
-                PathShape::Straight => TileTextureIndex(1),
-                PathShape::Turn => TileTextureIndex(5),
-                PathShape::Junction => TileTextureIndex(7),
-                PathShape::Crossing => TileTextureIndex(8),
+                PathShape::End => TileTextureIndex(4),
+                PathShape::Straight => TileTextureIndex(2),
+                PathShape::Turn => TileTextureIndex(6),
+                PathShape::Junction => TileTextureIndex(8),
+                PathShape::Crossing => TileTextureIndex(9),
             };
             *flip = flip_from_rotation(path.unwrap().rot);
         } else {
@@ -310,7 +331,7 @@ fn highlight_tile(
 }
 
 fn pathfinding(
-    tilemap: Query<(&TilemapSize, &TileStorage)>,
+    tilemap: Query<(&TilemapLayer, &TilemapSize, &TileStorage)>,
     mut start: Query<(&TilePos, &mut StartTile)>,
     end: Query<&TilePos, With<EndTile>>,
     mut paths: Query<(&TilePos, &mut PathTile)>,
@@ -320,7 +341,12 @@ fn pathfinding(
         path.distance.clear();
     }
 
-    if let Ok((size, storage)) = tilemap.get_single() {
+    for (layer, size, storage) in tilemap.iter() {
+        match layer {
+            TilemapLayer::RiverStix => {}
+            _ => continue,
+        }
+
         for end_pos in end.iter() {
             let mut open = BinaryHeap::new();
             let mut distances = HashMap::new();
@@ -391,10 +417,15 @@ fn pathfinding(
 }
 
 fn autotile(
-    tilemap: Query<(&TilemapSize, &TileStorage)>,
+    tilemap: Query<(&TilemapLayer, &TilemapSize, &TileStorage)>,
     mut paths: Query<(&TilePos, &mut PathTile)>,
 ) {
-    if let Ok((size, storage)) = tilemap.get_single() {
+    for (layer, size, storage) in tilemap.iter() {
+        match layer {
+            TilemapLayer::RiverStix => {}
+            _ => continue,
+        }
+
         let mut path_shapes = HashMap::new();
 
         for (pos, _) in paths.iter() {
@@ -605,4 +636,29 @@ pub fn tile_in_level(pos: &TilePos, level_size: &LevelSize) -> bool {
         && pos.x < offset.x + level_size.0.x
         && pos.y >= offset.y
         && pos.y < offset.y + level_size.0.y
+}
+
+pub fn fill_tilemap(
+    tilemap_id: TilemapId,
+    size: TilemapSize,
+    storage: &mut TileStorage,
+    visible: TileVisible,
+    commands: &mut Commands,
+) {
+    commands.entity(tilemap_id.0).with_children(|parent| {
+        for x in 0..size.x {
+            for y in 0..size.y {
+                let tile_pos = TilePos { x, y };
+                let tile_entity = parent
+                    .spawn(TileBundle {
+                        position: tile_pos,
+                        tilemap_id,
+                        visible,
+                        ..Default::default()
+                    })
+                    .id();
+                storage.set(&tile_pos, tile_entity);
+            }
+        }
+    });
 }

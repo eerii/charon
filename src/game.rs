@@ -6,18 +6,19 @@ use rand::Rng;
 
 use crate::{
     tilemap::{
-        play_to_real_size, EndTile, LevelSize, PathTile, StartTile, TilesAvailable, MAP_SIZE,
+        play_to_real_size, EndTile, ForegroundTile, LevelSize, PathTile, StartTile, TilemapLayer,
+        TilesAvailable, MAP_SIZE,
     },
     GameState,
 };
 
 //0, 1, 2, 3, 4, 5, 130, 160, 250, 300, 400, 500, 700, 900, 1200, 1500, 2000, 2500, 3500,
-const START_SCORES: [u32; 22] = [
+const START_SCORES: [u32; 20] = [
     0, 5, 30, 50, 70, 100, 130, 160, 250, 300, 400, 500, 700, 900, 1200, 1500, 2000, 2500, 3500,
-    5000, 7000, 8500,
+    5000,
 ];
 
-const END_SCORES: [u32; 5] = [0, 60, 350, 3000, 9000];
+const END_SCORES: [u32; 4] = [0, 60, 350, 3000];
 
 pub struct CharonPlugin;
 
@@ -87,9 +88,10 @@ fn spawn_start_end(
     score: Res<GameScore>,
     mut level_size: ResMut<LevelSize>,
     mut available: ResMut<TilesAvailable>,
-    tilemap: Query<&TileStorage>,
+    tilemap: Query<(&TilemapLayer, &TileStorage)>,
     starts: Query<&TilePos, With<StartTile>>,
     ends: Query<&TilePos, With<EndTile>>,
+    mut visible: Query<&mut TileVisible>,
     mut cam: Query<&mut GameCam>,
     mut start_spawned: Local<usize>,
     mut end_spawned: Local<usize>,
@@ -98,13 +100,13 @@ fn spawn_start_end(
     let next_start = if *start_spawned < START_SCORES.len() {
         START_SCORES[*start_spawned]
     } else {
-        (*start_spawned + 1 - START_SCORES.len()) as u32 * 10000
+        5000 + (*start_spawned + 1 - START_SCORES.len()) as u32 * 1000
     };
 
     let next_end = if *end_spawned < END_SCORES.len() {
         END_SCORES[*end_spawned]
     } else {
-        (*end_spawned + 1 - END_SCORES.len()) as u32 * 25000
+        (*end_spawned + 1 - END_SCORES.len()) as u32 * 10000
     };
 
     let mut is_start = false;
@@ -134,38 +136,72 @@ fn spawn_start_end(
     }
     let (offset, size) = play_to_real_size(&level_size);
 
-    if let Ok(storage) = tilemap.get_single() {
-        if is_start {
-            let pos = if *start_spawned <= 1 {
-                Some(TilePos {
-                    x: offset.x + 1,
-                    y: offset.y + size.y / 2,
-                })
+    let mut spawn_fun = |is_start: bool| {
+        // Get spawn position
+        let spawn_pos = {
+            if is_start {
+                if *start_spawned <= 1 {
+                    Some(TilePos {
+                        x: offset.x + 1,
+                        y: offset.y + size.y / 2,
+                    })
+                } else {
+                    get_spawn_pos(&offset, &size, &starts, &ends)
+                }
             } else {
-                get_spawn_pos(&offset, &size, &starts, &ends)
-            };
-            if let Some(pos) = pos {
-                cmd.entity(storage.get(&pos).unwrap())
-                    .insert((StartTile::default(), PathTile::default()));
-                available.0 += 3;
+                if *end_spawned <= 1 {
+                    Some(TilePos {
+                        x: offset.x + size.x - 2,
+                        y: offset.y + size.y / 2,
+                    })
+                } else {
+                    get_spawn_pos(&offset, &size, &starts, &ends)
+                }
             }
-        }
+        };
 
-        if is_end {
-            let pos = if *end_spawned <= 1 {
-                Some(TilePos {
-                    x: offset.x + size.x - 2,
-                    y: offset.y + size.y / 2,
-                })
-            } else {
-                get_spawn_pos(&offset, &size, &starts, &ends)
-            };
-            if let Some(pos) = pos {
-                cmd.entity(storage.get(&pos).unwrap())
-                    .insert((EndTile, PathTile::default()));
-                available.0 += 5;
+        if let Some(pos) = spawn_pos {
+            for (layer, storage) in tilemap.iter() {
+                match layer {
+                    // Insert the logical tile in the river
+                    TilemapLayer::RiverStix => {
+                        if let Some(entity) = storage.get(&pos) {
+                            if is_start {
+                                cmd.entity(entity)
+                                    .insert((StartTile::default(), PathTile::default()));
+                            } else {
+                                cmd.entity(entity).insert((EndTile, PathTile::default()));
+                            }
+                            if let Ok(mut visible) = visible.get_mut(entity) {
+                                visible.0 = true;
+                            }
+                        }
+                    }
+                    // Add the graphics element to the foreground
+                    TilemapLayer::Foreground => {
+                        if let Some(entity) = storage.get(&pos) {
+                            cmd.entity(entity).insert(if is_start {
+                                ForegroundTile::Start
+                            } else {
+                                ForegroundTile::End
+                            });
+                            if let Ok(mut visible) = visible.get_mut(entity) {
+                                visible.0 = true;
+                            }
+                        }
+                    }
+                    _ => continue,
+                }
             }
+            available.0 += if is_start { 2 } else { 4 };
         }
+    };
+
+    if is_start {
+        spawn_fun(true);
+    }
+    if is_end {
+        spawn_fun(false);
     }
 }
 

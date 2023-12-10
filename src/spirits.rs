@@ -7,7 +7,9 @@ use rand::Rng;
 use crate::{
     game::GameScore,
     load::{GameAssets, SpiritAssets},
-    tilemap::{get_neighbours, pos_to_tile, tile_to_pos, EndTile, PathTile, StartTile},
+    tilemap::{
+        get_neighbours, pos_to_tile, tile_to_pos, EndTile, PathTile, StartTile, TilemapLayer,
+    },
     GameState,
 };
 
@@ -15,8 +17,8 @@ const SPIRIT_SPEED: f32 = 200.;
 const SPIRIT_SIZE: f32 = 32.;
 const MAX_SPIRITS_IN_TILE: u32 = 3;
 
-pub const INITIAL_SPAWN_TIME: f32 = 1.0;
-const LOSE_COUNT: f32 = 40.;
+pub const INITIAL_SPAWN_TIME: f32 = 1.2;
+const LOSE_COUNT: f32 = 30.;
 
 const FUN_A: f32 = 10.;
 
@@ -28,18 +30,36 @@ pub struct SpiritPlugin;
 
 impl Plugin for SpiritPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            Update,
-            (
-                spawn_spirit,
-                check_lose_count,
-                next_tile_spirit,
-                spirit_collision,
-                move_spirit,
-                integrate,
+        app.insert_resource(EndTimer::default())
+            .add_systems(
+                Update,
+                (
+                    spawn_spirit,
+                    check_lose_count,
+                    next_tile_spirit,
+                    spirit_collision,
+                    move_spirit,
+                    integrate,
+                )
+                    .run_if(in_state(GameState::Play)),
             )
-                .run_if(in_state(GameState::Play)),
-        );
+            .add_systems(
+                PostUpdate,
+                clear_end_count.run_if(in_state(GameState::Play)),
+            );
+    }
+}
+
+// ·········
+// Resources
+// ·········
+
+#[derive(Resource)]
+pub struct EndTimer(Timer);
+
+impl Default for EndTimer {
+    fn default() -> Self {
+        Self(Timer::from_seconds(0.3, TimerMode::Repeating))
     }
 }
 
@@ -84,12 +104,17 @@ fn spawn_spirit(
     time: Res<Time>,
     spirit_assets: Res<SpiritAssets>,
     mut start: Query<(&TilePos, &mut StartTile, &mut PathTile)>,
-    tilemap: Query<(&TilemapGridSize, &TilemapType, &Transform)>,
+    tilemap: Query<(&TilemapLayer, &TilemapGridSize, &TilemapType, &Transform)>,
 ) {
     for (start_pos, mut start_tile, mut start_path) in start.iter_mut() {
         if start_tile.spawn_timer.tick(time.delta()).just_finished() {
-            if let Ok((grid_size, map_type, trans)) = tilemap.get_single() {
-                start_tile.lose_counter += 1.;
+            start_tile.lose_counter += 1.;
+
+            for (layer, grid_size, map_type, trans) in tilemap.iter() {
+                match layer {
+                    TilemapLayer::RiverStix => {}
+                    _ => continue,
+                }
 
                 // Don't spawn entities if the path is not complete
                 if !start_tile.completed_once {
@@ -100,7 +125,7 @@ fn spawn_spirit(
                 let pos = tile_to_pos(start_pos, grid_size, map_type, trans);
 
                 // If there is already another entity there, don't spawn
-                if start_path.count >= 1 {
+                if start_path.count >= 2 {
                     continue;
                 }
                 start_path.count += 1;
@@ -110,7 +135,7 @@ fn spawn_spirit(
                     SpriteSheetBundle {
                         sprite: TextureAtlasSprite::new(0),
                         texture_atlas: spirit_assets.stix.clone(),
-                        transform: Transform::from_translation(pos.extend(1.)),
+                        transform: Transform::from_translation(pos.extend(5.)),
                         ..default()
                     },
                     Spirit::new(*start_pos, pos),
@@ -119,7 +144,7 @@ fn spawn_spirit(
 
                 // Reduce timer 0.01 seconds until it is 0.5
                 let duration = start_tile.spawn_timer.duration().as_millis();
-                if duration > 600 {
+                if duration > 500 {
                     start_tile
                         .spawn_timer
                         .set_duration(Duration::from_millis((duration - 5) as u64));
@@ -135,14 +160,19 @@ fn check_lose_count(
     assets: Res<GameAssets>,
     mut start: Query<(&TilePos, &mut StartTile)>,
     mut text: Query<&mut Text, With<LoseText>>,
-    tilemap: Query<(&TilemapGridSize, &TilemapType, &Transform)>,
+    tilemap: Query<(&TilemapLayer, &TilemapGridSize, &TilemapType, &Transform)>,
 ) {
     for (pos, mut start) in start.iter_mut() {
-        if start.lose_counter > 10. {
+        if start.lose_counter > 1. {
             let lose_text = start.lose_text;
 
             if lose_text.is_none() {
-                if let Ok((grid_size, map_type, trans)) = tilemap.get_single() {
+                for (layer, grid_size, map_type, trans) in tilemap.iter() {
+                    match layer {
+                        TilemapLayer::RiverStix => {}
+                        _ => continue,
+                    }
+
                     let pos = tile_to_pos(pos, grid_size, map_type, trans);
                     start.lose_text = Some(
                         cmd.spawn((
@@ -167,7 +197,7 @@ fn check_lose_count(
             };
 
             if let Ok(mut text) = text.get_mut(lose_text.unwrap()) {
-                let remainder = 16. - ((start.lose_counter - 10.) / 2.).min(15.);
+                let remainder = (LOSE_COUNT - start.lose_counter) / 2. + 1.;
                 text.sections[0].value = if remainder <= 2. {
                     "!!!".to_string()
                 } else if remainder > 15. {
@@ -185,13 +215,13 @@ fn check_lose_count(
 
 fn next_tile_spirit(
     mut cmd: Commands,
-    mut score: ResMut<GameScore>,
     mut spirit: Query<(Entity, &Transform, &mut Spirit)>,
     mut paths: Query<(&TilePos, &mut PathTile)>,
     start: Query<Entity, With<StartTile>>,
     end: Query<Entity, With<EndTile>>,
     tilemap: Query<
         (
+            &TilemapLayer,
             &TilemapSize,
             &TilemapGridSize,
             &TilemapType,
@@ -201,7 +231,11 @@ fn next_tile_spirit(
         Without<Spirit>,
     >,
 ) {
-    if let Ok((map_size, grid_size, map_type, storage, map_trans)) = tilemap.get_single() {
+    for (layer, map_size, grid_size, map_type, storage, map_trans) in tilemap.iter() {
+        match layer {
+            TilemapLayer::RiverStix => {}
+            _ => continue,
+        }
         for (spirit_entity, trans, mut spirit) in spirit.iter_mut() {
             if let Some(tile_pos) = pos_to_tile(
                 &trans.translation.xy(),
@@ -214,6 +248,7 @@ fn next_tile_spirit(
                     continue;
                 }
 
+                // TODO: Move this so it updates for other spirits
                 // Update counts
                 if let Some(entity) = storage.get(&tile_pos) {
                     if let Ok((_, mut path)) = paths.get_mut(entity) {
@@ -234,11 +269,6 @@ fn next_tile_spirit(
                     // If the spirit is on the end tile, despawn
                     if let Some(entity) = storage.get(&tile_pos) {
                         if end.get(entity).is_ok() {
-                            cmd.get_entity(spirit_entity).unwrap().despawn_recursive();
-                            score.score += 1;
-                            if let Ok((_, mut path)) = paths.get_mut(entity) {
-                                path.count = 0;
-                            }
                             continue;
                         }
                         if let Some(end) = spirit.selected_end {
@@ -356,6 +386,29 @@ fn next_tile_spirit(
                         tile_to_pos(&spirit.next_tile.unwrap(), grid_size, map_type, map_trans);
                     spirit.selected_end = next.unwrap().2;
                 }
+            }
+        }
+    }
+}
+
+fn clear_end_count(
+    mut cmd: Commands,
+    time: Res<Time>,
+    mut score: ResMut<GameScore>,
+    mut end: Query<(&mut PathTile, &TilePos), With<EndTile>>,
+    spirits: Query<(Entity, &Spirit)>,
+    mut timer: ResMut<EndTimer>,
+) {
+    if !timer.0.tick(time.delta()).just_finished() {
+        return;
+    }
+    for (mut end, end_pos) in end.iter_mut() {
+        for (entity, spirit) in spirits.iter() {
+            if spirit.curr_tile == *end_pos {
+                cmd.get_entity(entity).unwrap().despawn_recursive();
+                end.count -= 1;
+                score.score += 1;
+                break;
             }
         }
     }
