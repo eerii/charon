@@ -81,8 +81,8 @@ source code at: <https://github.com/eerii/charon>
     - [x] tutorial text
     - [x] fullscreen
     - [x] let the player know no tiles left
+    - [x] initial text when less than 30 entities 
     - [ ] sounds (ui, entities)
-    - [ ] initial text when less than 30 entities 
 
 - [ ] playtesting and bugfixing (lun)
     - [x] review settings menu

@@ -325,6 +325,13 @@ fn highlight_tile(
             continue;
         }
 
+        if start.is_some() {
+            *tex = TileTextureIndex(9);
+            continue;
+        }
+
+        *color = TileColor::default();
+
         if let Some(fg) = foreground {
             match fg {
                 ForegroundTile::Start => {
@@ -336,13 +343,6 @@ fn highlight_tile(
             }
             continue;
         }
-
-        if start.is_some() {
-            *tex = TileTextureIndex(9);
-            continue;
-        }
-
-        *color = TileColor::default();
 
         if path.is_some() {
             *tex = match path.unwrap().shape {

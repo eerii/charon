@@ -12,12 +12,13 @@ use crate::{
         play_to_real_size, tile_to_pos, EndTile, ForegroundTile, LevelSize, PathTile, StartTile,
         TilemapLayer, TilesAvailable, MAP_SIZE,
     },
+    ui::*,
     GameState, INITIAL_RESOLUTION,
 };
 
 //0, 1, 2, 3, 4, 5, 130, 160, 250, 300, 400, 500, 700, 900, 1200, 1500, 2000, 2500, 3500,
 const START_SCORES: [u32; 20] = [
-    0, 5, 30, 50, 100, 130, 160, 220, 260, 300, 400, 500, 700, 900, 1200, 1500, 2000, 2500, 3500,
+    0, 5, 25, 50, 100, 130, 160, 220, 260, 300, 400, 500, 700, 900, 1200, 1500, 2000, 2500, 3500,
     5000,
 ];
 
@@ -66,6 +67,9 @@ pub struct GameCam {
 
 #[derive(Component)]
 pub struct TutorialText;
+
+#[derive(Component)]
+pub struct InitialText;
 
 // ·······
 // Systems
@@ -136,6 +140,8 @@ fn spawn_start_end(
     mut visible: Query<&mut TileVisible>,
     mut cam: Query<&mut GameCam>,
     tutorial: Query<Entity, With<TutorialText>>,
+    story_text: Query<Entity, With<InitialText>>,
+    style: Res<UIStyle>,
 ) {
     // If score is bigger than 1, remove tutorial text
     if score.score >= 1 {
@@ -207,6 +213,39 @@ fn spawn_start_end(
         };
 
         if let Some(pos) = spawn_pos {
+            // Add the story text (between 10 and 30 entities)
+            if count.start == 2 {
+                cmd.spawn((
+                    NodeBundle {
+                        style: Style {
+                            position_type: PositionType::Absolute,
+                            width: Val::Percent(100.),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            top: Val::Percent(if pos.y - offset.y < size.y / 2 {
+                                28.
+                            } else {
+                                72.
+                            }),
+                            ..default()
+                        },
+                        ..default()
+                    },
+                    InitialText,
+                ))
+                .with_children(|node| {
+                    UIText::simple(&style, "Guide home as many entities as you can")
+                        .with_title()
+                        .add(node);
+                });
+            }
+
+            if count.start == 3 {
+                for story_text in story_text.iter() {
+                    cmd.entity(story_text).despawn_recursive();
+                }
+            }
+
             for (layer, grid_size, map_type, storage, trans) in tilemap.iter() {
                 match layer {
                     // Insert the logical tile in the river
