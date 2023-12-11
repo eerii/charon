@@ -40,7 +40,7 @@ struct TilesText;
 
 fn init_hud(
     mut cmd: Commands,
-    assets: Res<GameAssets>,
+    game_assets: Res<GameAssets>,
     style: Res<UIStyle>,
     mut node: Query<Entity, With<UiNode>>,
 ) {
@@ -66,7 +66,7 @@ fn init_hud(
                         tiles.spawn((
                             ImageBundle {
                                 image: UiImage {
-                                    texture: assets.river_icon.clone(),
+                                    texture: game_assets.river_icon.clone(),
                                     ..default()
                                 },
                                 style: Style {
@@ -101,7 +101,7 @@ fn init_hud(
                         score.spawn((
                             ImageBundle {
                                 image: UiImage {
-                                    texture: assets.coin_icon.clone(),
+                                    texture: game_assets.coin_icon.clone(),
                                     ..default()
                                 },
                                 style: Style {

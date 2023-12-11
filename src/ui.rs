@@ -1,7 +1,7 @@
 use bevy::{prelude::*, render::view::RenderLayers, sprite::MaterialMesh2dBundle};
 use bevy_persistent::Persistent;
 
-use crate::{config::GameOptions, load::GameAssets, GameState};
+use crate::{config::GameOptions, load::StartAssets, GameState};
 
 pub const UI_LAYER: RenderLayers = RenderLayers::layer(1);
 const MENU_WIDTH: Val = Val::Px(300.);
@@ -108,7 +108,7 @@ pub fn init_ui(
 fn change_style(
     mut style: ResMut<UIStyle>,
     opts: Res<Persistent<GameOptions>>,
-    assets: Res<GameAssets>,
+    assets: Res<StartAssets>,
 ) {
     style.title = TextStyle {
         font: assets.font.clone(),

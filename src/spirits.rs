@@ -9,7 +9,7 @@ use rand::Rng;
 
 use crate::{
     config::GameScore,
-    load::{GameAssets, SpiritAssets},
+    load::{SpiritAssets, StartAssets},
     tilemap::{
         get_neighbours, pos_to_tile, tile_to_pos, EndTile, PathTile, StartTile, TilemapLayer,
     },
@@ -174,7 +174,7 @@ fn spawn_spirit(
 fn check_lose_count(
     mut cmd: Commands,
     mut state: ResMut<NextState<GameState>>,
-    assets: Res<GameAssets>,
+    assets: Res<StartAssets>,
     mut start: Query<(&TilePos, &mut StartTile)>,
     mut text: Query<&mut Text, With<LoseText>>,
     tilemap: Query<(&TilemapLayer, &TilemapGridSize, &TilemapType, &Transform)>,

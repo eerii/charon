@@ -4,6 +4,7 @@
 use crate::{
     config::{GameOptions, GameScore, Keybinds, Persistent, FONT_MULTIPLIERS, FONT_SIZES},
     input::Bind,
+    load::GameAssets,
     ui::*,
     GameState,
 };
@@ -93,13 +94,14 @@ pub enum MenuButton {
 fn init_menu(
     mut cmd: Commands,
     style: Res<UIStyle>,
+    assets: Res<GameAssets>,
     mut node: Query<Entity, With<UiNode>>,
     score: Res<Persistent<GameScore>>,
 ) {
     // Main menu layout
     if let Ok(node) = node.get_single_mut() {
         cmd.insert_resource(MenuStarting);
-        layout_main(cmd, node, &style, score.best_score);
+        layout_main(cmd, node, &style, score.best_score, &assets.start_screen);
     }
 }
 
@@ -197,6 +199,7 @@ fn may_be_cleaned(mut cmd: Commands, menu_starting: Option<Res<MenuStarting>>) {
 fn clean_menu(
     mut cmd: Commands,
     state: Res<State<MenuState>>,
+    assets: Res<GameAssets>,
     node: Query<Entity, With<UiNode>>,
     style: Res<UIStyle>,
     opts: Res<Persistent<GameOptions>>,
@@ -214,7 +217,9 @@ fn clean_menu(
             entity.despawn_descendants();
 
             match state.get() {
-                MenuState::Main => layout_main(cmd, node, &style, score.best_score),
+                MenuState::Main => {
+                    layout_main(cmd, node, &style, score.best_score, &assets.start_screen)
+                }
                 MenuState::Settings => layout_options(cmd, node, &style),
                 MenuState::Keybinds => layout_keybinds(cmd, node, &style, &keybinds),
                 MenuState::Rebinding => {
@@ -316,9 +321,35 @@ fn remap_keybind(
 // Extra
 // ·····
 
-fn layout_main(mut cmd: Commands, node: Entity, style: &UIStyle, best_score: u32) {
+fn layout_main(
+    mut cmd: Commands,
+    node: Entity,
+    style: &UIStyle,
+    best_score: u32,
+    background: &Handle<Image>,
+) {
     if let Some(mut node) = cmd.get_entity(node) {
         node.with_children(|parent| {
+            // Background image
+            parent.spawn((
+                ImageBundle {
+                    image: UiImage {
+                        texture: background.clone(),
+                        ..default()
+                    },
+                    style: Style {
+                        width: Val::Percent(100.),
+                        height: Val::Percent(100.),
+                        position_type: PositionType::Absolute,
+                        top: Val::Px(0.),
+                        left: Val::Px(0.),
+                        ..default()
+                    },
+                    ..default()
+                },
+                UI_LAYER,
+            ));
+
             UIText::simple(style, "Entities' repose")
                 .with_title()
                 .add(parent);
@@ -326,8 +357,28 @@ fn layout_main(mut cmd: Commands, node: Entity, style: &UIStyle, best_score: u32
                 UIText::simple(style, &format!("Most saved: {}", best_score)).add(parent);
             }
 
-            UIButton::new(style, "Play", Some(MenuButton::Play)).add(parent);
-            UIButton::new(style, "Settings", Some(MenuButton::GoSettings)).add(parent);
+            parent
+                .spawn((
+                    NodeBundle {
+                        style: Style {
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            column_gap: Val::Px(32.),
+                            padding: UiRect {
+                                bottom: Val::Percent(45.),
+                                ..default()
+                            },
+                            ..default()
+                        },
+                        ..default()
+                    },
+                    UI_LAYER,
+                ))
+                .with_children(|parent| {
+                    UIButton::new(style, "Play", Some(MenuButton::Play)).add(parent);
+                    UIButton::new(style, "Settings", Some(MenuButton::GoSettings)).add(parent);
+                });
         });
     }
 }

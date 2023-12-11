@@ -21,13 +21,14 @@ pub struct LoadPlugin;
 impl Plugin for LoadPlugin {
     fn build(&self, app: &mut App) {
         app.add_loading_state(LoadingState::new(GameState::Loading))
-            .init_collection::<GameAssets>()
+            .init_collection::<StartAssets>()
+            .add_collection_to_loading_state::<_, GameAssets>(GameState::Loading)
             .add_collection_to_loading_state::<_, SpiritAssets>(GameState::Loading)
             .add_collection_to_loading_state::<_, TilemapAssets>(GameState::Loading)
             .add_plugins((ProgressPlugin::new(GameState::Loading)
                 .continue_to(GameState::Menu)
                 .track_assets(),))
-            .add_systems(OnEnter(GameState::Loading), init_splash)
+            .add_systems(Update, init_splash.run_if(in_state(GameState::Loading)))
             .add_systems(OnExit(GameState::Loading), clear_loading)
             .add_systems(
                 Update,
@@ -45,18 +46,24 @@ impl Plugin for LoadPlugin {
 // Assets for the splash screen and menus
 // They are loaded inmediately after the app is fired, no effect on loading state
 #[derive(AssetCollection, Resource)]
-pub struct GameAssets {
+pub struct StartAssets {
     #[asset(path = "icons/bevy.png")]
     pub bevy_icon: Handle<Image>,
+
+    #[asset(path = "fonts/sans.ttf")]
+    pub font: Handle<Font>,
+}
+
+#[derive(AssetCollection, Resource)]
+pub struct GameAssets {
+    #[asset(path = "icons/start.png")]
+    pub start_screen: Handle<Image>,
 
     #[asset(path = "sprites/coin.png")]
     pub coin_icon: Handle<Image>,
 
     #[asset(path = "sprites/river.png")]
     pub river_icon: Handle<Image>,
-
-    #[asset(path = "fonts/sans.ttf")]
-    pub font: Handle<Font>,
 }
 
 #[derive(AssetCollection, Resource)]
@@ -93,12 +100,14 @@ struct ProgressBar;
 fn init_splash(
     mut cmd: Commands,
     node: Query<Entity, With<UiNode>>,
-    assets: Res<GameAssets>,
+    assets: Res<StartAssets>,
     mut has_init: Local<bool>,
 ) {
     if *has_init {
         return;
     }
+
+    info!("ui");
 
     if let Ok(node) = node.get_single() {
         if let Some(mut node) = cmd.get_entity(node) {
@@ -139,7 +148,7 @@ fn check_splash_finished(time: Res<Time>, mut timer: Query<&mut SplashTimer>) ->
 fn check_progress(
     mut cmd: Commands,
     progress: Option<Res<ProgressCounter>>,
-    assets: Res<GameAssets>,
+    assets: Res<StartAssets>,
     timer: Query<&SplashTimer>,
     node: Query<Entity, With<UiNode>>,
     opts: Res<Persistent<GameOptions>>,

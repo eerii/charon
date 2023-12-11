@@ -13,7 +13,7 @@ pub struct DebugPlugin;
 // Only debug implementation
 #[cfg(debug_assertions)]
 mod only_in_debug {
-    use crate::{load::GameAssets, ui::*, GameState};
+    use crate::{load::StartAssets, ui::*, GameState};
     use bevy::{
         diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
         ecs::schedule::ScheduleLabel,
@@ -69,7 +69,7 @@ mod only_in_debug {
     fn init_fps(
         mut cmd: Commands,
         node: Query<Entity, With<UiNode>>,
-        assets: Res<GameAssets>,
+        assets: Res<StartAssets>,
         fps: Query<Entity, With<FpsText>>,
     ) {
         if fps.iter().next().is_some() {

@@ -32,7 +32,7 @@ a game for the bevy jam 4
 - [ ] new features (lun)
     - [x] end screen (win/lose)
     - [x] restart game
-    - [ ] main menu with image
+    - [x] main menu with image
     - [ ] sound and music
     - [ ] other river types + bridges
     - [ ] other spirit behaviour
