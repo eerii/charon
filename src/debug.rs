@@ -95,6 +95,7 @@ mod only_in_debug {
                             ..default()
                         }),
                         FpsText,
+                        UI_LAYER,
                     ));
                 });
             }

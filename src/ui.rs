@@ -32,7 +32,7 @@ impl Plugin for UIPlugin {
 #[derive(Resource, Default)]
 pub struct UIStyle {
     title: TextStyle,
-    text: TextStyle,
+    pub text: TextStyle,
     button_text: TextStyle,
 
     button: Style,
@@ -48,6 +48,9 @@ pub struct UiCam;
 
 #[derive(Component)]
 pub struct UiNode;
+
+#[derive(Component)]
+pub struct UiNone;
 
 // ·······
 // Systems
@@ -142,16 +145,18 @@ fn change_style(
 
 // Text
 
-pub struct UIText<'a> {
+pub struct UIText<'a, T: Component> {
     text: TextBundle,
     style: &'a UIStyle,
+    action: Option<T>,
 }
 
-impl<'a> UIText<'a> {
-    pub fn new(style: &'a UIStyle, text: &str) -> Self {
+impl<'a, T: Component> UIText<'a, T> {
+    pub fn new(style: &'a UIStyle, text: &str, action: Option<T>) -> Self {
         Self {
             text: TextBundle::from_section(text, style.text.clone()),
             style,
+            action,
         }
     }
 
@@ -166,7 +171,21 @@ impl<'a> UIText<'a> {
     }
 
     pub fn add(self, parent: &mut ChildBuilder) {
-        parent.spawn((self.text, UI_LAYER));
+        if let Some(action) = self.action {
+            parent.spawn((self.text, action, UI_LAYER));
+        } else {
+            parent.spawn((self.text, UI_LAYER));
+        }
+    }
+}
+
+impl<'a> UIText<'a, UiNone> {
+    pub fn simple(style: &'a UIStyle, text: &str) -> Self {
+        Self {
+            text: TextBundle::from_section(text, style.text.clone()),
+            style,
+            action: None,
+        }
     }
 }
 
@@ -175,11 +194,11 @@ impl<'a> UIText<'a> {
 pub struct UIButton<T: Component> {
     button: ButtonBundle,
     text: TextBundle,
-    action: T,
+    action: Option<T>,
 }
 
 impl<T: Component> UIButton<T> {
-    pub fn new(style: &UIStyle, text: &str, action: T) -> Self {
+    pub fn new(style: &UIStyle, text: &str, action: Option<T>) -> Self {
         Self {
             button: ButtonBundle {
                 style: style.button.clone(),
@@ -202,13 +221,14 @@ impl<T: Component> UIButton<T> {
     }
 
     pub fn add(self, parent: &mut ChildBuilder) {
-        let _text = self.text.text.sections[0].value.clone();
-        let _id = parent
-            .spawn((self.button, self.action, UI_LAYER))
-            .with_children(|button| {
-                button.spawn((self.text, UI_LAYER));
-            })
-            .id();
+        if let Some(action) = self.action {
+            parent.spawn((self.button, action, UI_LAYER))
+        } else {
+            parent.spawn((self.button, UI_LAYER))
+        }
+        .with_children(|button| {
+            button.spawn((self.text, UI_LAYER));
+        });
     }
 }
 
@@ -216,7 +236,7 @@ impl<T: Component> UIButton<T> {
 
 pub struct UIOption<'a> {
     row: NodeBundle,
-    label: UIText<'a>,
+    label: UIText<'a, UiNone>,
 }
 
 impl<'a> UIOption<'a> {
@@ -233,7 +253,7 @@ impl<'a> UIOption<'a> {
                 },
                 ..default()
             },
-            label: UIText::new(style, &snake_to_upper(label)).with_style(Style {
+            label: UIText::new(style, &snake_to_upper(label), None).with_style(Style {
                 flex_grow: 1.,
                 ..default()
             }),

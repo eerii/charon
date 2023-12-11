@@ -84,7 +84,6 @@ pub enum MenuButton {
     RemapKeybind(String),
     ResetKeybinds,
     ChangeFont(String),
-    Other,
 }
 
 // ·······
@@ -174,7 +173,6 @@ fn handle_buttons(
                             })
                             .unwrap_or_else(|e| error!("Failed to change font size: {}", e));
                         }
-                        MenuButton::Other => {}
                     }
                 }
                 Interaction::Hovered => {
@@ -321,15 +319,15 @@ fn remap_keybind(
 fn layout_main(mut cmd: Commands, node: Entity, style: &UIStyle, best_score: u32) {
     if let Some(mut node) = cmd.get_entity(node) {
         node.with_children(|parent| {
-            UIText::new(style, "Entities' repose")
+            UIText::simple(style, "Entities' repose")
                 .with_title()
                 .add(parent);
             if best_score > 0 {
-                UIText::new(style, &format!("Most saved: {}", best_score)).add(parent);
+                UIText::simple(style, &format!("Most saved: {}", best_score)).add(parent);
             }
 
-            UIButton::new(style, "Play", MenuButton::Play).add(parent);
-            UIButton::new(style, "Settings", MenuButton::GoSettings).add(parent);
+            UIButton::new(style, "Play", Some(MenuButton::Play)).add(parent);
+            UIButton::new(style, "Settings", Some(MenuButton::GoSettings)).add(parent);
         });
     }
 }
@@ -337,12 +335,12 @@ fn layout_main(mut cmd: Commands, node: Entity, style: &UIStyle, best_score: u32
 fn layout_options(mut cmd: Commands, node: Entity, style: &UIStyle) {
     if let Some(mut node) = cmd.get_entity(node) {
         node.with_children(|parent| {
-            UIText::new(style, "Settings").with_title().add(parent);
+            UIText::simple(style, "Settings").with_title().add(parent);
 
-            UIButton::new(style, "Keybinds", MenuButton::GoKeybinds).add(parent);
-            UIButton::new(style, "Visual", MenuButton::GoVisual).add(parent);
+            UIButton::new(style, "Keybinds", Some(MenuButton::GoKeybinds)).add(parent);
+            UIButton::new(style, "Visual", Some(MenuButton::GoVisual)).add(parent);
 
-            UIButton::new(style, "Back", MenuButton::GoMain).add(parent);
+            UIButton::new(style, "Back", Some(MenuButton::GoMain)).add(parent);
         });
     }
 }
@@ -350,7 +348,7 @@ fn layout_options(mut cmd: Commands, node: Entity, style: &UIStyle) {
 fn layout_keybinds(mut cmd: Commands, node: Entity, style: &UIStyle, keybinds: &Keybinds) {
     if let Some(mut node) = cmd.get_entity(node) {
         node.with_children(|parent| {
-            UIText::new(style, "Keybinds").with_title().add(parent);
+            UIText::simple(style, "Keybinds").with_title().add(parent);
 
             for (i, value) in keybinds.iter_fields().enumerate() {
                 let field_name = keybinds.name_at(i).unwrap();
@@ -365,7 +363,7 @@ fn layout_keybinds(mut cmd: Commands, node: Entity, style: &UIStyle, keybinds: &
                         UIButton::new(
                             style,
                             &keys,
-                            MenuButton::RemapKeybind(field_name.to_string()),
+                            Some(MenuButton::RemapKeybind(field_name.to_string())),
                         )
                         .with_width(Val::Px(128.))
                         .with_font_scale(0.7)
@@ -374,9 +372,9 @@ fn layout_keybinds(mut cmd: Commands, node: Entity, style: &UIStyle, keybinds: &
                 }
             }
 
-            UIButton::new(style, "Reset", MenuButton::ResetKeybinds).add(parent);
+            UIButton::new(style, "Reset", Some(MenuButton::ResetKeybinds)).add(parent);
 
-            UIButton::new(style, "Back", MenuButton::GoSettings).add(parent);
+            UIButton::new(style, "Back", Some(MenuButton::GoSettings)).add(parent);
         });
     }
 }
@@ -384,13 +382,13 @@ fn layout_keybinds(mut cmd: Commands, node: Entity, style: &UIStyle, keybinds: &
 fn layout_rebinding(mut cmd: Commands, node: Entity, style: &UIStyle, key: &str) {
     if let Some(mut node) = cmd.get_entity(node) {
         node.with_children(|parent| {
-            UIText::new(
+            UIText::simple(
                 style,
                 &format!("Press a key or button for {}", snake_to_upper(key)),
             )
             .add(parent);
 
-            UIButton::new(style, "Back", MenuButton::GoKeybinds).add(parent);
+            UIButton::new(style, "Back", Some(MenuButton::GoKeybinds)).add(parent);
         });
     }
 }
@@ -398,7 +396,7 @@ fn layout_rebinding(mut cmd: Commands, node: Entity, style: &UIStyle, key: &str)
 fn layout_visual(mut cmd: Commands, node: Entity, style: &UIStyle, opts: &GameOptions) {
     if let Some(mut node) = cmd.get_entity(node) {
         node.with_children(|parent| {
-            UIText::new(style, "Visual settings")
+            UIText::simple(style, "Visual settings")
                 .with_title()
                 .add(parent);
 
@@ -409,7 +407,7 @@ fn layout_visual(mut cmd: Commands, node: Entity, style: &UIStyle, opts: &GameOp
                         UIButton::new(
                             style,
                             &format!("{}", value),
-                            MenuButton::ChangeFont(field_name),
+                            Some(MenuButton::ChangeFont(field_name)),
                         )
                         .with_width(Val::Px(40.))
                         .add(row);
@@ -417,7 +415,7 @@ fn layout_visual(mut cmd: Commands, node: Entity, style: &UIStyle, opts: &GameOp
                 }
             }
 
-            UIButton::new(style, "Back", MenuButton::GoSettings).add(parent);
+            UIButton::new(style, "Back", Some(MenuButton::GoSettings)).add(parent);
         });
     }
 }

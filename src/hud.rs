@@ -38,7 +38,12 @@ struct TilesText;
 // Systems
 // ·······
 
-fn init_hud(mut cmd: Commands, assets: Res<GameAssets>, mut node: Query<Entity, With<UiNode>>) {
+fn init_hud(
+    mut cmd: Commands,
+    assets: Res<GameAssets>,
+    style: Res<UIStyle>,
+    mut node: Query<Entity, With<UiNode>>,
+) {
     // Main menu layout
     if let Ok(node) = node.get_single_mut() {
         if let Some(mut node) = cmd.get_entity(node) {
@@ -58,29 +63,22 @@ fn init_hud(mut cmd: Commands, assets: Res<GameAssets>, mut node: Query<Entity, 
                         ..default()
                     })
                     .with_children(|tiles| {
-                        tiles.spawn(ImageBundle {
-                            image: UiImage {
-                                texture: assets.river_icon.clone(),
-                                ..default()
-                            },
-                            style: Style {
-                                width: Val::Px(24.),
-                                ..default()
-                            },
-                            ..default()
-                        });
-
                         tiles.spawn((
-                            TextBundle::from_section(
-                                "0",
-                                TextStyle {
-                                    font: assets.font.clone(),
-                                    font_size: 24.0,
-                                    color: Color::WHITE,
+                            ImageBundle {
+                                image: UiImage {
+                                    texture: assets.river_icon.clone(),
+                                    ..default()
                                 },
-                            ),
-                            TilesText,
+                                style: Style {
+                                    width: Val::Px(style.text.font_size + 4.),
+                                    ..default()
+                                },
+                                ..default()
+                            },
+                            UI_LAYER,
                         ));
+
+                        UIText::new(&style, "0", Some(TilesText)).add(tiles);
                     });
 
                 parent
@@ -98,29 +96,22 @@ fn init_hud(mut cmd: Commands, assets: Res<GameAssets>, mut node: Query<Entity, 
                         ..default()
                     })
                     .with_children(|score| {
-                        score.spawn((
-                            TextBundle::from_section(
-                                "0",
-                                TextStyle {
-                                    font: assets.font.clone(),
-                                    font_size: 24.0,
-                                    color: Color::WHITE,
-                                },
-                            ),
-                            ScoreText,
-                        ));
+                        UIText::new(&style, "0", Some(ScoreText)).add(score);
 
-                        score.spawn(ImageBundle {
-                            image: UiImage {
-                                texture: assets.coin_icon.clone(),
+                        score.spawn((
+                            ImageBundle {
+                                image: UiImage {
+                                    texture: assets.coin_icon.clone(),
+                                    ..default()
+                                },
+                                style: Style {
+                                    width: Val::Px(style.text.font_size + 4.),
+                                    ..default()
+                                },
                                 ..default()
                             },
-                            style: Style {
-                                width: Val::Px(24.),
-                                ..default()
-                            },
-                            ..default()
-                        });
+                            UI_LAYER,
+                        ));
                     });
             });
         }

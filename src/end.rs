@@ -1,6 +1,6 @@
 use crate::{
     config::{GameOptions, GameScore},
-    menu::MenuButton,
+    menu::MenuState,
     ui::*,
     GameState,
 };
@@ -34,8 +34,8 @@ fn init_end_screen(
     if let Ok(node) = node.get_single_mut() {
         if let Some(mut node) = cmd.get_entity(node) {
             node.with_children(|parent| {
-                UIText::new(&style, "Your journey has ended").add(parent);
-                UIText::new(
+                UIText::simple(&style, "Your journey has ended").add(parent);
+                UIText::simple(
                     &style,
                     &format!(
                         "You helped {} entities find their way home",
@@ -48,15 +48,16 @@ fn init_end_screen(
                     ),
                 )
                 .add(parent);
-                UIText::new(&style, "Thank you").add(parent);
+                UIText::simple(&style, "Thank you").add(parent);
 
-                UIButton::new(&style, "Try again", MenuButton::Other).add(parent);
+                UIButton::<UiNone>::new(&style, "Try again", None).add(parent);
             });
         }
     }
 }
 
 fn handle_buttons(
+    mut menu_state: ResMut<NextState<MenuState>>,
     mut game_state: ResMut<NextState<GameState>>,
     mut text: Query<&mut Text>,
     mut buttons: Query<(&Interaction, &Children, &mut BackgroundColor), Changed<Interaction>>,
@@ -70,6 +71,7 @@ fn handle_buttons(
                     bg.0 = opts.color.dark;
                     text.sections[0].style.color = opts.color.light;
                     // Go to the main menu
+                    menu_state.set(MenuState::Main);
                     game_state.set(GameState::Menu);
                 }
                 Interaction::Hovered => {
