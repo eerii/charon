@@ -21,7 +21,7 @@ use crate::{
 pub const MAP_SIZE: TilemapSize = TilemapSize { x: 24, y: 19 };
 const TILE_SIZE: TilemapTileSize = TilemapTileSize { x: 128., y: 128. };
 const GRID_SIZE: TilemapGridSize = TilemapGridSize { x: 127.5, y: 127.5 };
-const INITIAL_TILES: u32 = 10 - 4;
+const INITIAL_TILES: u32 = 9;
 
 // ······
 // Plugin
@@ -334,9 +334,17 @@ fn highlight_tile(
                     *tex = TileTextureIndex(11);
                 }
             }
-        } else if start.is_some() {
+            continue;
+        }
+
+        if start.is_some() {
             *tex = TileTextureIndex(9);
-        } else if path.is_some() {
+            continue;
+        }
+
+        *color = TileColor::default();
+
+        if path.is_some() {
             *tex = match path.unwrap().shape {
                 PathShape::None => TileTextureIndex(0),
                 PathShape::End => TileTextureIndex(4),

@@ -21,7 +21,7 @@ const START_SCORES: [u32; 20] = [
     5000,
 ];
 
-const END_SCORES: [u32; 6] = [0, 70, 200, 350, 1000, 3000];
+const END_SCORES: [u32; 7] = [0, 70, 200, 350, 600, 1000, 3000];
 
 pub struct CharonPlugin;
 

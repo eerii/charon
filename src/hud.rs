@@ -120,8 +120,9 @@ fn init_hud(
 
 fn update_hud(
     score: Res<Persistent<GameScore>>,
-    mut score_text: Query<&mut Text, (With<ScoreText>, Without<TilesText>)>,
     tiles: Res<TilesAvailable>,
+    style: Res<UIStyle>,
+    mut score_text: Query<&mut Text, (With<ScoreText>, Without<TilesText>)>,
     mut tiles_text: Query<&mut Text, (With<TilesText>, Without<ScoreText>)>,
 ) {
     for mut text in score_text.iter_mut() {
@@ -129,6 +130,16 @@ fn update_hud(
     }
     for mut text in tiles_text.iter_mut() {
         text.sections[0].value = format!("{}", tiles.0);
+        text.sections[0].style.color = if tiles.0 == 0 {
+            Color::rgb(0.9, 0.4, 0.6)
+        } else {
+            style.text.color
+        };
+        text.sections[0].style.font_size = if tiles.0 == 0 {
+            style.text.font_size * 1.2
+        } else {
+            style.text.font_size
+        };
     }
 }
 
