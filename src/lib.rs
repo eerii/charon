@@ -13,6 +13,8 @@ mod ui;
 
 use bevy::prelude::*;
 
+pub const INITIAL_RESOLUTION: Vec2 = Vec2::new(1080., 720.);
+
 // Game state
 #[derive(States, Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub enum GameState {

@@ -1,6 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
-use bevy::{prelude::*, render::view::RenderLayers};
+use bevy::{prelude::*, render::view::RenderLayers, window::WindowResized};
 use bevy_ecs_tilemap::prelude::*;
 use bevy_persistent::Persistent;
 use rand::Rng;
@@ -11,7 +11,7 @@ use crate::{
         play_to_real_size, EndTile, ForegroundTile, LevelSize, PathTile, StartTile, TilemapLayer,
         TilesAvailable, MAP_SIZE,
     },
-    GameState,
+    GameState, INITIAL_RESOLUTION,
 };
 
 //0, 1, 2, 3, 4, 5, 130, 160, 250, 300, 400, 500, 700, 900, 1200, 1500, 2000, 2500, 3500,
@@ -232,9 +232,25 @@ fn spawn_start_end(
     }
 }
 
-fn zoom_camera(mut cam: Query<(&mut OrthographicProjection, &GameCam)>) {
+fn zoom_camera(
+    mut cam: Query<(&mut OrthographicProjection, &GameCam)>,
+    mut win: Query<&mut Window>,
+    mut on_resize: EventReader<WindowResized>,
+    mut base_scale: Local<f32>,
+) {
+    if *base_scale == 0. {
+        *base_scale = 0.9;
+    }
+
+    for e in on_resize.read() {
+        *base_scale = (INITIAL_RESOLUTION.x / e.width) * 0.9;
+        if let Ok(mut win) = win.get_single_mut() {
+            win.resolution.set(e.width, e.height);
+        }
+    }
+
     if let Ok((mut proj, cam)) = cam.get_single_mut() {
-        proj.scale = lerp(proj.scale, 0.9 + cam.target_zoom, 0.01);
+        proj.scale = lerp(proj.scale, *base_scale + cam.target_zoom, 0.01);
     }
 }
 

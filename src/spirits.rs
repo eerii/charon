@@ -259,12 +259,25 @@ fn next_tile_spirit(
                 map_type,
                 map_trans,
             ) {
-                if spirit.next_tile.is_some() && spirit.curr_tile == tile_pos {
-                    continue;
+                // Check if selected end tile is reachable
+                if let Some(selected_end) = spirit.selected_end {
+                    if let Some(entity) = storage.get(&tile_pos) {
+                        if let Ok((_, path)) = paths.get(entity) {
+                            if !path.distance.contains_key(&selected_end) {
+                                spirit.selected_end = None;
+                                spirit.next_tile = None;
+                                spirit.curr_distance = std::f32::MAX;
+                            }
+                        }
+                    }
                 }
 
-                // TODO: Move this so it updates for other spirits
-
+                if spirit.next_tile.is_some()
+                    && spirit.selected_end.is_some()
+                    && spirit.curr_tile == tile_pos
+                {
+                    continue;
+                }
                 spirit.curr_tile = tile_pos;
 
                 // If it arrived at the next tile (or if there is no next tile)

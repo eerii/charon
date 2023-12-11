@@ -1,7 +1,7 @@
 use bevy::{prelude::*, render::view::RenderLayers, sprite::MaterialMesh2dBundle};
 use bevy_persistent::Persistent;
 
-use crate::{config::GameOptions, load::StartAssets, GameState};
+use crate::{config::GameOptions, load::StartAssets, GameState, INITIAL_RESOLUTION};
 
 pub const UI_LAYER: RenderLayers = RenderLayers::layer(1);
 const MENU_WIDTH: Val = Val::Px(300.);
@@ -79,7 +79,11 @@ pub fn init_ui(
     cmd.spawn((
         MaterialMesh2dBundle {
             mesh: meshes.add(Mesh::from(shape::Quad::default())).into(),
-            transform: Transform::from_xyz(0., 0., -10.).with_scale(Vec3::new(1080., 720., 1.)),
+            transform: Transform::from_xyz(0., 0., -10.).with_scale(Vec3::new(
+                INITIAL_RESOLUTION.x * 2.,
+                INITIAL_RESOLUTION.y * 2.,
+                1.,
+            )),
             material: materials.add(ColorMaterial::from(opts.color.dark)),
             ..default()
         },

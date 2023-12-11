@@ -339,9 +339,7 @@ fn layout_main(
                     },
                     style: Style {
                         width: Val::Percent(100.),
-                        height: Val::Percent(100.),
                         position_type: PositionType::Absolute,
-                        top: Val::Px(0.),
                         left: Val::Px(0.),
                         ..default()
                     },

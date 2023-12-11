@@ -4,6 +4,7 @@
 use crate::{config::GameOptions, ui::*, GameState};
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
+use bevy_kira_audio::AudioSource;
 use bevy_persistent::Persistent;
 use iyes_progress::prelude::*;
 
@@ -64,6 +65,9 @@ pub struct GameAssets {
 
     #[asset(path = "sprites/river.png")]
     pub river_icon: Handle<Image>,
+
+    #[asset(path = "music/background_music.ogg")]
+    pub music: Handle<AudioSource>,
 }
 
 #[derive(AssetCollection, Resource)]

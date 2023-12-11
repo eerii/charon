@@ -1,6 +1,6 @@
-use bevy::{asset::AssetMetaCheck, prelude::*, window::WindowResolution};
+use bevy::{asset::AssetMetaCheck, prelude::*};
 use bevy_embedded_assets::{EmbeddedAssetPlugin, PluginMode};
-use charon::GamePlugin;
+use charon::{GamePlugin, INITIAL_RESOLUTION};
 
 fn main() {
     App::new()
@@ -12,8 +12,9 @@ fn main() {
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "Charon".to_string(),
-                    resolution: WindowResolution::new(1080., 720.),
-                    resizable: false, // Or use fit_canvas_to_parent: true for resizing on the web
+                    resolution: INITIAL_RESOLUTION.into(),
+                    resizable: true,
+                    fit_canvas_to_parent: true,
                     canvas: Some("#bevy".to_string()),
                     prevent_default_event_handling: false,
                     ..default()

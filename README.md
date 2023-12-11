@@ -33,12 +33,15 @@ a game for the bevy jam 4
     - [x] end screen (win/lose)
     - [x] restart game
     - [x] main menu with image
-    - [ ] sound and music
+    - [x] music 
+    - [ ] tutorial text
+    - [x] fullscreen
+    - [ ] sounds (ui, entities)
     - [ ] other river types + bridges
     - [ ] other spirit behaviour
 
 - [ ] playtesting and bugfixing (lun)
-    - [ ] review settings menu
+    - [x] review settings menu
     - [ ] profiling and optimization
 
 - [ ] presentation (lun)
