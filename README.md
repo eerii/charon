@@ -47,7 +47,7 @@ a game for the bevy jam 4
 - [ ] presentation (lun)
     - [ ] write readme
     - [ ] write jam page
-    - [ ] presubmit game
+    - [ ] submit game
 
 - [ ] would be nice (???)
     - [x] animations

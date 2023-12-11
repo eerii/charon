@@ -313,8 +313,6 @@ fn highlight_tile(
     }
 
     for (mut tex, mut color, mut flip, pos, path, start, foreground) in tiles.iter_mut() {
-        *color = TileColor::default();
-
         if let Some(sel_pos) = sel_pos.0 {
             if sel_pos == *pos && path.is_none() && foreground.is_none() {
                 *tex = TileTextureIndex(1);

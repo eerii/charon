@@ -175,11 +175,12 @@ fn check_lose_count(
     mut cmd: Commands,
     mut state: ResMut<NextState<GameState>>,
     assets: Res<StartAssets>,
-    mut start: Query<(&TilePos, &mut StartTile)>,
+    end_timer: Res<EndTimer>,
+    mut start: Query<(&TilePos, &mut TileColor, &mut StartTile)>,
     mut text: Query<&mut Text, With<LoseText>>,
     tilemap: Query<(&TilemapLayer, &TilemapGridSize, &TilemapType, &Transform)>,
 ) {
-    for (pos, mut start) in start.iter_mut() {
+    for (pos, mut color, mut start) in start.iter_mut() {
         let lose_text = start.lose_text;
 
         if lose_text.is_none() {
@@ -214,6 +215,19 @@ fn check_lose_count(
 
         if let Ok(mut text) = text.get_mut(lose_text.unwrap()) {
             let remainder = (LOSE_COUNT - start.lose_counter) / 2. - 3.;
+
+            if remainder <= 5. {
+                if end_timer.0.finished() {
+                    *color = TileColor(if color.0 == Color::default() {
+                        Color::rgb(1.0, 0.2, 0.5)
+                    } else {
+                        Color::default()
+                    });
+                }
+            } else {
+                *color = TileColor(Color::default());
+            }
+
             text.sections[0].value = if remainder <= 0. {
                 "!!!".to_string()
             } else if remainder > 10. {
