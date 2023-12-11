@@ -1,6 +1,9 @@
-use bevy::prelude::*;
+#![allow(clippy::type_complexity)]
 
-use crate::{game::GameScore, load::GameAssets, tilemap::TilesAvailable, ui::*, GameState};
+use bevy::prelude::*;
+use bevy_persistent::Persistent;
+
+use crate::{config::GameScore, load::GameAssets, tilemap::TilesAvailable, ui::*, GameState};
 
 // ······
 // Plugin
@@ -11,7 +14,12 @@ pub struct HudPlugin;
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(GameState::Play), init_hud)
-            .add_systems(Update, update_hud.run_if(in_state(GameState::Play)))
+            .add_systems(
+                Update,
+                update_hud.run_if(
+                    in_state(GameState::Play).and_then(resource_exists::<TilesAvailable>()),
+                ),
+            )
             .add_systems(OnExit(GameState::Play), exit_hud);
     }
 }
@@ -120,7 +128,7 @@ fn init_hud(mut cmd: Commands, assets: Res<GameAssets>, mut node: Query<Entity, 
 }
 
 fn update_hud(
-    score: Res<GameScore>,
+    score: Res<Persistent<GameScore>>,
     mut score_text: Query<&mut Text, (With<ScoreText>, Without<TilesText>)>,
     tiles: Res<TilesAvailable>,
     mut tiles_text: Query<&mut Text, (With<TilesText>, Without<ScoreText>)>,
@@ -133,8 +141,8 @@ fn update_hud(
     }
 }
 
-fn exit_hud(mut cmd: Commands, score: Query<Entity, With<ScoreText>>) {
-    for score in score.iter() {
-        cmd.entity(score).despawn_recursive();
+fn exit_hud(mut cmd: Commands, text: Query<Entity, Or<(With<ScoreText>, With<TilesText>)>>) {
+    for text in text.iter() {
+        cmd.entity(text).despawn_recursive();
     }
 }

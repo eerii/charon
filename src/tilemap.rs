@@ -21,6 +21,7 @@ use crate::{
 pub const MAP_SIZE: TilemapSize = TilemapSize { x: 24, y: 19 };
 const TILE_SIZE: TilemapTileSize = TilemapTileSize { x: 128., y: 128. };
 const GRID_SIZE: TilemapGridSize = TilemapGridSize { x: 127.5, y: 127.5 };
+const INITIAL_TILES: u32 = 10 - 4;
 
 // ······
 // Plugin
@@ -30,10 +31,12 @@ pub struct TilePlugin;
 
 impl Plugin for TilePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(TilesAvailable(6))
-            .insert_resource(SelectedPos(None))
+        app.insert_resource(NeedsReset)
             .add_plugins(TilemapPlugin)
-            .add_systems(OnEnter(GameState::Play), init_tilemap.run_if(run_once()))
+            .add_systems(
+                OnEnter(GameState::Play),
+                init_tilemap.run_if(resource_added::<NeedsReset>()),
+            )
             .add_systems(
                 Update,
                 (select_tile, click_tile).run_if(in_state(GameState::Play)),
@@ -42,10 +45,11 @@ impl Plugin for TilePlugin {
                 PostUpdate,
                 (
                     highlight_tile,
-                    (autotile, pathfinding).run_if(resource_changed::<TilesAvailable>()),
+                    (autotile, pathfinding).run_if(resource_exists_and_changed::<TilesAvailable>()),
                 )
                     .run_if(in_state(GameState::Play)),
-            );
+            )
+            .add_systems(OnEnter(GameState::End), reset_tilemap);
     }
 }
 
@@ -61,6 +65,9 @@ pub struct SelectedPos(Option<TilePos>);
 
 #[derive(Resource)]
 pub struct LevelSize(pub TilemapSize);
+
+#[derive(Resource)]
+pub struct NeedsReset;
 
 // ··········
 // Components
@@ -175,7 +182,22 @@ fn init_tilemap(mut cmd: Commands, tile_assets: Res<TilemapAssets>) {
         ));
     }
 
+    cmd.insert_resource(TilesAvailable(INITIAL_TILES));
+    cmd.insert_resource(SelectedPos(None));
     cmd.insert_resource(LevelSize(TilemapSize { x: 8, y: 3 }));
+    cmd.remove_resource::<NeedsReset>();
+}
+
+fn reset_tilemap(
+    mut cmd: Commands,
+    tiles: Query<Entity, Or<(With<TilemapSize>, With<TilePos>, With<TileStorage>)>>,
+) {
+    for entity in tiles.iter() {
+        if let Some(mut entity) = cmd.get_entity(entity) {
+            entity.despawn();
+        }
+    }
+    cmd.insert_resource(NeedsReset);
 }
 
 fn select_tile(
@@ -209,7 +231,9 @@ fn select_tile(
                 return;
             }
             if let Some(tile_entity) = tile_storage.get(&tile_pos) {
-                cmd.entity(tile_entity).insert(SelectedTile);
+                if let Some(mut entity) = cmd.get_entity(tile_entity) {
+                    entity.insert(SelectedTile);
+                }
                 sel_pos.0 = Some(tile_pos);
             }
         }
@@ -223,7 +247,7 @@ fn click_tile(
     input: Res<Input<Bind>>,
     keybinds: Res<Persistent<Keybinds>>,
     mut available: ResMut<TilesAvailable>,
-    mut prev: Local<Option<(bool, Option<TilePos>, Option<TilePos>)>>,
+    mut prev: Local<Option<bool>>,
 ) {
     let select = keybinds.interact.iter().any(|bind| {
         if prev.is_none() {
@@ -237,9 +261,9 @@ fn click_tile(
         if let Ok((entity, mut visible)) = selected.get_single_mut() {
             if let Ok((path, start, end)) = tiles.get(entity) {
                 if prev.is_none() {
-                    *prev = Some((path.is_some(), None, None));
+                    *prev = Some(path.is_some());
                 }
-                let (is_path, _one_ago, _two_ago) = prev.as_mut().unwrap();
+                let is_path = prev.as_mut().unwrap();
 
                 if path.is_some() != *is_path {
                     return;

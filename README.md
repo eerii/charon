@@ -30,7 +30,8 @@ a game for the bevy jam 4
     - [x] overlay ui
 
 - [ ] new features (lun)
-    - [ ] end screen (win/lose)
+    - [x] end screen (win/lose)
+    - [x] restart game
     - [ ] main menu with image
     - [ ] sound and music
     - [ ] other river types + bridges

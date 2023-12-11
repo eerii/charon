@@ -99,6 +99,15 @@ impl Default for Keybinds {
     }
 }
 
+#[derive(Resource, Serialize, Deserialize, Reflect, Default)]
+pub struct GameScore {
+    #[serde(skip_serializing, skip_deserializing)]
+    pub score: u32,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub last_score: u32,
+    pub best_score: u32,
+}
+
 // ·······
 // Systems
 // ·······
@@ -131,5 +140,17 @@ fn init_persistence(mut cmd: Commands) {
             .revert_to_default_on_deserialization_errors(true)
             .build()
             .expect("Failed to initialize keybinds"),
+    );
+
+    cmd.insert_resource(
+        Persistent::<GameScore>::builder()
+            .name("score")
+            .format(StorageFormat::Toml)
+            .path(config_dir.join("score.toml"))
+            .default(GameScore::default())
+            .revertible(true)
+            .revert_to_default_on_deserialization_errors(true)
+            .build()
+            .expect("Failed to initialize game score"),
     );
 }

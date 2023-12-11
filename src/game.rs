@@ -2,9 +2,11 @@
 
 use bevy::{prelude::*, render::view::RenderLayers};
 use bevy_ecs_tilemap::prelude::*;
+use bevy_persistent::Persistent;
 use rand::Rng;
 
 use crate::{
+    config::GameScore,
     tilemap::{
         play_to_real_size, EndTile, ForegroundTile, LevelSize, PathTile, StartTile, TilemapLayer,
         TilesAvailable, MAP_SIZE,
@@ -24,19 +26,21 @@ pub struct CharonPlugin;
 
 impl Plugin for CharonPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            OnEnter(GameState::Play),
-            (init_game.run_if(run_once()), resume_game),
-        )
-        .add_systems(
-            Update,
-            (
-                zoom_camera,
-                spawn_start_end.run_if(resource_exists_and_changed::<GameScore>()),
+        app.insert_resource(SpawnedCount::default())
+            .add_systems(OnEnter(GameState::Play), init_game)
+            .add_systems(
+                Update,
+                (
+                    zoom_camera,
+                    spawn_start_end.run_if(
+                        resource_exists::<TilesAvailable>()
+                            .and_then(resource_exists_and_changed::<Persistent<GameScore>>()),
+                    ),
+                )
+                    .run_if(in_state(GameState::Play)),
             )
-                .run_if(in_state(GameState::Play)),
-        )
-        .add_systems(OnExit(GameState::Play), pause_game);
+            .add_systems(OnExit(GameState::Play), pause_game)
+            .add_systems(OnEnter(GameState::End), reset_score);
     }
 }
 
@@ -45,8 +49,9 @@ impl Plugin for CharonPlugin {
 // ·········
 
 #[derive(Resource, Default)]
-pub struct GameScore {
-    pub score: u32,
+struct SpawnedCount {
+    start: usize,
+    end: usize,
 }
 
 // ··········
@@ -62,19 +67,24 @@ pub struct GameCam {
 // Systems
 // ·······
 
-fn init_game(mut cmd: Commands) {
-    cmd.spawn((
-        Camera2dBundle::default(),
-        RenderLayers::layer(0),
-        GameCam::default(),
-    ));
-    cmd.insert_resource(GameScore::default())
-}
+fn init_game(
+    mut cmd: Commands,
+    mut score: ResMut<Persistent<GameScore>>,
+    mut cam: Query<&mut Camera, With<GameCam>>,
+) {
+    if cam.iter().count() == 0 {
+        cmd.spawn((
+            Camera2dBundle::default(),
+            RenderLayers::layer(0),
+            GameCam::default(),
+        ));
+    }
 
-fn resume_game(mut cam: Query<&mut Camera, With<GameCam>>) {
     for mut cam in cam.iter_mut() {
         cam.is_active = true;
     }
+
+    score.score = 0;
 }
 
 fn pause_game(mut cam: Query<&mut Camera, With<GameCam>>) {
@@ -83,9 +93,29 @@ fn pause_game(mut cam: Query<&mut Camera, With<GameCam>>) {
     }
 }
 
+fn reset_score(
+    mut score: ResMut<Persistent<GameScore>>,
+    mut count: ResMut<SpawnedCount>,
+    mut cam: Query<&mut GameCam>,
+) {
+    score
+        .update(|score| {
+            score.last_score = score.score;
+            score.best_score = score.score.max(score.best_score);
+            score.score = 0;
+        })
+        .expect("Failed to update score");
+
+    *count = SpawnedCount::default();
+
+    for mut cam in cam.iter_mut() {
+        cam.target_zoom = 0.;
+    }
+}
+
 fn spawn_start_end(
     mut cmd: Commands,
-    score: Res<GameScore>,
+    score: Res<Persistent<GameScore>>,
     mut level_size: ResMut<LevelSize>,
     mut available: ResMut<TilesAvailable>,
     tilemap: Query<(&TilemapLayer, &TileStorage)>,
@@ -93,32 +123,31 @@ fn spawn_start_end(
     ends: Query<&TilePos, With<EndTile>>,
     mut visible: Query<&mut TileVisible>,
     mut cam: Query<&mut GameCam>,
-    mut start_spawned: Local<usize>,
-    mut end_spawned: Local<usize>,
+    mut count: ResMut<SpawnedCount>,
 ) {
     // Check if we need to spawn a start or end tile
-    let next_start = if *start_spawned < START_SCORES.len() {
-        START_SCORES[*start_spawned]
+    let next_start = if count.start < START_SCORES.len() {
+        START_SCORES[count.start]
     } else {
-        5000 + (*start_spawned + 1 - START_SCORES.len()) as u32 * 1000
+        5000 + (count.start + 1 - START_SCORES.len()) as u32 * 1000
     };
 
-    let next_end = if *end_spawned < END_SCORES.len() {
-        END_SCORES[*end_spawned]
+    let next_end = if count.end < END_SCORES.len() {
+        END_SCORES[count.end]
     } else {
-        (*end_spawned + 1 - END_SCORES.len()) as u32 * 10000
+        (count.end + 1 - END_SCORES.len()) as u32 * 10000
     };
 
     let mut is_start = false;
     let mut is_end = false;
 
     if score.score >= next_start {
-        *start_spawned += 1;
+        count.start += 1;
         is_start = true;
     }
 
     if score.score >= next_end {
-        *end_spawned += 1;
+        count.end += 1;
         is_end = true;
     }
 
@@ -127,7 +156,7 @@ fn spawn_start_end(
     };
 
     // Grow level size every 2 starts (only if we are not at the max size)
-    if is_start && (*start_spawned + 3) % 4 == 0 && level_size.0.x < MAP_SIZE.x {
+    if is_start && (count.start + 3) % 4 == 0 && level_size.0.x < MAP_SIZE.x {
         level_size.0.x += 2;
         level_size.0.y += 2;
         if let Ok(mut cam) = cam.get_single_mut() {
@@ -140,7 +169,7 @@ fn spawn_start_end(
         // Get spawn position
         let spawn_pos = {
             if is_start {
-                if *start_spawned <= 1 {
+                if count.start <= 1 {
                     Some(TilePos {
                         x: offset.x + 1,
                         y: offset.y + size.y / 2,
@@ -148,7 +177,7 @@ fn spawn_start_end(
                 } else {
                     get_spawn_pos(&offset, &size, &starts, &ends)
                 }
-            } else if *end_spawned <= 1 {
+            } else if count.end <= 1 {
                 Some(TilePos {
                     x: offset.x + size.x - 2,
                     y: offset.y + size.y / 2,

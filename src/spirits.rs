@@ -4,10 +4,11 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
+use bevy_persistent::Persistent;
 use rand::Rng;
 
 use crate::{
-    game::GameScore,
+    config::GameScore,
     load::{GameAssets, SpiritAssets},
     tilemap::{
         get_neighbours, pos_to_tile, tile_to_pos, EndTile, PathTile, StartTile, TilemapLayer,
@@ -16,7 +17,7 @@ use crate::{
 };
 
 const SPIRIT_SPEED: f32 = 200.;
-const SPIRIT_SIZE: f32 = 32.;
+const SPIRIT_SIZE: f32 = 50.;
 const MAX_SPIRITS_IN_TILE: u32 = 3;
 
 pub const INITIAL_SPAWN_TIME: f32 = 1.2;
@@ -49,7 +50,8 @@ impl Plugin for SpiritPlugin {
             .add_systems(
                 PostUpdate,
                 clear_end_count.run_if(in_state(GameState::Play)),
-            );
+            )
+            .add_systems(OnEnter(GameState::End), reset_spirits);
     }
 }
 
@@ -104,6 +106,15 @@ pub struct LoseText;
 // Systems
 // ·······
 
+fn reset_spirits(
+    mut cmd: Commands,
+    mut spirits: Query<Entity, Or<(With<Spirit>, With<LoseText>)>>,
+) {
+    for entity in spirits.iter_mut() {
+        cmd.entity(entity).despawn_recursive();
+    }
+}
+
 fn spawn_spirit(
     mut cmd: Commands,
     time: Res<Time>,
@@ -140,7 +151,8 @@ fn spawn_spirit(
                     SpriteSheetBundle {
                         sprite: TextureAtlasSprite::new((rand::random::<usize>() % 3) * 2),
                         texture_atlas: spirit_assets.stix.clone(),
-                        transform: Transform::from_translation(pos.extend(5.)),
+                        transform: Transform::from_translation(pos.extend(5.))
+                            .with_scale(Vec3::splat(0.75)),
                         ..default()
                     },
                     Spirit::new(*start_pos, pos),
@@ -399,7 +411,7 @@ fn next_tile_spirit(
 fn clear_end_count(
     mut cmd: Commands,
     time: Res<Time>,
-    mut score: ResMut<GameScore>,
+    mut score: ResMut<Persistent<GameScore>>,
     mut end: Query<(&mut PathTile, &TilePos), With<EndTile>>,
     spirits: Query<(Entity, &Spirit)>,
     mut timer: ResMut<EndTimer>,

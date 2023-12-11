@@ -2,7 +2,7 @@
 #![allow(clippy::type_complexity)]
 
 use crate::{
-    config::{GameOptions, Keybinds, Persistent, FONT_MULTIPLIERS, FONT_SIZES},
+    config::{GameOptions, GameScore, Keybinds, Persistent, FONT_MULTIPLIERS, FONT_SIZES},
     input::Bind,
     ui::*,
     GameState,
@@ -75,7 +75,7 @@ struct KeyBeingRebound(String);
 struct MenuText;
 
 #[derive(Component)]
-enum MenuButton {
+pub enum MenuButton {
     Play,
     GoMain,
     GoSettings,
@@ -84,17 +84,23 @@ enum MenuButton {
     RemapKeybind(String),
     ResetKeybinds,
     ChangeFont(String),
+    Other,
 }
 
 // ·······
 // Systems
 // ·······
 
-fn init_menu(mut cmd: Commands, style: Res<UIStyle>, mut node: Query<Entity, With<UiNode>>) {
+fn init_menu(
+    mut cmd: Commands,
+    style: Res<UIStyle>,
+    mut node: Query<Entity, With<UiNode>>,
+    score: Res<Persistent<GameScore>>,
+) {
     // Main menu layout
     if let Ok(node) = node.get_single_mut() {
         cmd.insert_resource(MenuStarting);
-        layout_main(cmd, node, &style);
+        layout_main(cmd, node, &style, score.best_score);
     }
 }
 
@@ -168,6 +174,7 @@ fn handle_buttons(
                             })
                             .unwrap_or_else(|e| error!("Failed to change font size: {}", e));
                         }
+                        MenuButton::Other => {}
                     }
                 }
                 Interaction::Hovered => {
@@ -198,6 +205,7 @@ fn clean_menu(
     keybinds: Res<Persistent<Keybinds>>,
     rebind_key: Option<Res<KeyBeingRebound>>,
     menu_starting: Option<Res<MenuStarting>>,
+    score: Res<Persistent<GameScore>>,
 ) {
     if menu_starting.is_some() {
         return;
@@ -208,7 +216,7 @@ fn clean_menu(
             entity.despawn_descendants();
 
             match state.get() {
-                MenuState::Main => layout_main(cmd, node, &style),
+                MenuState::Main => layout_main(cmd, node, &style, score.best_score),
                 MenuState::Settings => layout_options(cmd, node, &style),
                 MenuState::Keybinds => layout_keybinds(cmd, node, &style, &keybinds),
                 MenuState::Rebinding => {
@@ -310,10 +318,15 @@ fn remap_keybind(
 // Extra
 // ·····
 
-fn layout_main(mut cmd: Commands, node: Entity, style: &UIStyle) {
+fn layout_main(mut cmd: Commands, node: Entity, style: &UIStyle, best_score: u32) {
     if let Some(mut node) = cmd.get_entity(node) {
         node.with_children(|parent| {
-            UIText::new(style, "Charon").with_title().add(parent);
+            UIText::new(style, "Entities' repose")
+                .with_title()
+                .add(parent);
+            if best_score > 0 {
+                UIText::new(style, &format!("Most saved: {}", best_score)).add(parent);
+            }
 
             UIButton::new(style, "Play", MenuButton::Play).add(parent);
             UIButton::new(style, "Settings", MenuButton::GoSettings).add(parent);

@@ -1,6 +1,7 @@
 mod audio;
 mod config;
 mod debug;
+mod end;
 mod game;
 mod hud;
 mod input;
@@ -32,6 +33,7 @@ impl Plugin for GamePlugin {
             ui::UIPlugin,
             menu::MenuPlugin,
             hud::HudPlugin,
+            end::EndScreenPlugin,
             config::ConfigPlugin,
             input::InputPlugin,
             audio::AudioPlugin,

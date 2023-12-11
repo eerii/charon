@@ -61,11 +61,11 @@ pub struct GameAssets {
 
 #[derive(AssetCollection, Resource)]
 pub struct SpiritAssets {
-    #[asset(texture_atlas(tile_size_x = 72., tile_size_y = 72., columns = 6, rows = 1))]
+    #[asset(texture_atlas(tile_size_x = 128., tile_size_y = 128., columns = 6, rows = 1))]
     #[asset(path = "sprites/spirits_stix.png")]
     pub stix: Handle<TextureAtlas>,
 
-    #[asset(texture_atlas(tile_size_x = 72., tile_size_y = 72., columns = 4, rows = 1))]
+    #[asset(texture_atlas(tile_size_x = 128., tile_size_y = 128., columns = 4, rows = 1))]
     #[asset(path = "sprites/spirits_phlege.png")]
     pub phlege: Handle<TextureAtlas>,
 }
