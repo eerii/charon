@@ -7,9 +7,10 @@ use rand::Rng;
 
 use crate::{
     config::GameScore,
+    load::StartAssets,
     tilemap::{
-        play_to_real_size, EndTile, ForegroundTile, LevelSize, PathTile, StartTile, TilemapLayer,
-        TilesAvailable, MAP_SIZE,
+        play_to_real_size, tile_to_pos, EndTile, ForegroundTile, LevelSize, PathTile, StartTile,
+        TilemapLayer, TilesAvailable, MAP_SIZE,
     },
     GameState, INITIAL_RESOLUTION,
 };
@@ -62,6 +63,9 @@ struct SpawnedCount {
 pub struct GameCam {
     target_zoom: f32,
 }
+
+#[derive(Component)]
+pub struct TutorialText;
 
 // ·······
 // Systems
@@ -116,15 +120,30 @@ fn reset_score(
 fn spawn_start_end(
     mut cmd: Commands,
     score: Res<Persistent<GameScore>>,
+    assets: Res<StartAssets>,
     mut level_size: ResMut<LevelSize>,
     mut available: ResMut<TilesAvailable>,
-    tilemap: Query<(&TilemapLayer, &TileStorage)>,
+    mut count: ResMut<SpawnedCount>,
+    tilemap: Query<(
+        &TilemapLayer,
+        &TilemapGridSize,
+        &TilemapType,
+        &TileStorage,
+        &Transform,
+    )>,
     starts: Query<&TilePos, With<StartTile>>,
     ends: Query<&TilePos, With<EndTile>>,
     mut visible: Query<&mut TileVisible>,
     mut cam: Query<&mut GameCam>,
-    mut count: ResMut<SpawnedCount>,
+    tutorial: Query<Entity, With<TutorialText>>,
 ) {
+    // If score is bigger than 1, remove tutorial text
+    if score.score >= 1 {
+        for entity in tutorial.iter() {
+            cmd.entity(entity).despawn_recursive();
+        }
+    }
+
     // Check if we need to spawn a start or end tile
     let next_start = if count.start < START_SCORES.len() {
         START_SCORES[count.start]
@@ -188,16 +207,51 @@ fn spawn_start_end(
         };
 
         if let Some(pos) = spawn_pos {
-            for (layer, storage) in tilemap.iter() {
+            for (layer, grid_size, map_type, storage, trans) in tilemap.iter() {
                 match layer {
                     // Insert the logical tile in the river
                     TilemapLayer::RiverStix => {
                         if let Some(entity) = storage.get(&pos) {
+                            // Also generate tutorial text
+                            let world_pos = (tile_to_pos(&pos, grid_size, map_type, trans)
+                                + Vec2::new(0., 96.))
+                            .extend(10.);
+                            let style = TextStyle {
+                                font: assets.font.clone(),
+                                font_size: 32.,
+                                color: Color::rgb(0.9, 0.9, 0.7),
+                            };
+
                             if is_start {
                                 cmd.entity(entity)
                                     .insert((StartTile::default(), PathTile::default()));
+
+                                if count.start == 1 {
+                                    cmd.spawn((
+                                        Text2dBundle {
+                                            text: Text::from_section(
+                                                "Draw from here",
+                                                style.clone(),
+                                            ),
+                                            transform: Transform::from_translation(world_pos),
+                                            ..default()
+                                        },
+                                        TutorialText,
+                                    ));
+                                }
                             } else {
                                 cmd.entity(entity).insert((EndTile, PathTile::default()));
+
+                                if count.end == 1 {
+                                    cmd.spawn((
+                                        Text2dBundle {
+                                            text: Text::from_section("to here", style),
+                                            transform: Transform::from_translation(world_pos),
+                                            ..default()
+                                        },
+                                        TutorialText,
+                                    ));
+                                }
                             }
                             if let Ok(mut visible) = visible.get_mut(entity) {
                                 visible.0 = true;

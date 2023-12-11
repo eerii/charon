@@ -34,7 +34,7 @@ a game for the bevy jam 4
     - [x] restart game
     - [x] main menu with image
     - [x] music 
-    - [ ] tutorial text
+    - [x] tutorial text
     - [x] fullscreen
     - [ ] sounds (ui, entities)
     - [ ] other river types + bridges
