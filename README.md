@@ -1,6 +1,13 @@
 # entities' respose 🚣
 
+![start-export](https://github.com/eerii/charon/assets/22449369/eb9023e2-9c4f-4b20-ae4c-f8129d1a5b5e)
+
 **entities' repose** is a traffic management game where you are tasked with guiding spirits through the rivers of the underworld. you will need to build the way for them, but soon you will find that there are **too many entities**! comment bellow how many ghosts you managed to save (^-^)
+
+<p float="left">
+  <img src="https://github.com/eerii/charon/assets/22449369/e2575f22-9262-42aa-b787-e14fa93a1fdf" width="49%" />
+  <img src="https://github.com/eerii/charon/assets/22449369/711ff13c-2056-481e-953f-db34f6695474" width="49%" />
+</p>
 
 **controls:**
 
